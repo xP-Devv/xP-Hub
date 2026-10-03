@@ -1,0 +1,1182 @@
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
+local LocalPlayer = Players.LocalPlayer
+
+-- ============================================================
+-- FEATURES
+-- ============================================================
+local Features = {
+    KillAura = { enabled = false, key = Enum.KeyCode.Unknown, showRange = false,
+        config = { IgnoreFriends = true, MaxDistance = 100 } },
+    TPWalk = { enabled = false, key = Enum.KeyCode.Unknown, config = { Speed = 1.5 } },
+
+    NoCooldown = { enabled = false, key = Enum.KeyCode.Unknown },
+    NoStun = { enabled = false, key = Enum.KeyCode.Unknown },
+    InfiniteUltimate = { enabled = false, key = Enum.KeyCode.Unknown },
+    NoSlowdowns = { enabled = false },
+    NoJumpFatigue = { enabled = false },
+    MultiUseCutscenes = { enabled = false },
+    Endless = { enabled = false },
+    DisableCombatTimer = { enabled = false },
+
+    XRay = { enabled = false, key = Enum.KeyCode.Unknown, config = { transparency = 0.5 } },
+
+    Invisible = { enabled = false, key = Enum.KeyCode.Unknown },
+
+    DashSpeed = 100,
+    MeleeSpeed = 100,
+}
+
+local killAuraConn, tpwalkConn, xrayConnection = nil, nil, nil
+local ToggleObjects = {}
+local originalCooldowns = {}
+
+-- ============================================================
+-- NOTIFICATION
+-- ============================================================
+local function sendNotification(title, text)
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {
+            Title = title, Text = text or "", Duration = 2
+        })
+    end)
+end
+
+-- ============================================================
+-- BYPASSES AUTOMÁTICOS
+-- ============================================================
+local function hookValidation(funcName)
+    for _, v in pairs(getgc(true)) do
+        if typeof(v) == "function" and debug.getinfo(v).name == funcName then
+            pcall(function()
+                hookfunction(v, function(...) return true end)
+            end)
+            return true
+        end
+    end
+    return false
+end
+
+local BypassList = {
+    { key = "Movement",   name = "Movement",   funcName = "validateMovement" },
+    { key = "Velocity",   name = "Velocity",   funcName = "validateVelocity" },
+    { key = "Collisions", name = "Collisions", funcName = "validateCollisions" },
+    { key = "Abilities",  name = "Abilities",  funcName = "Valid" },
+    { key = "Melee",      name = "Melee",      funcName = "validateGlobals" },
+}
+
+task.spawn(function()
+    task.wait(2)
+    local applied = 0
+    for _, b in ipairs(BypassList) do
+        if hookValidation(b.funcName) then
+            applied = applied + 1
+        end
+    end
+    sendNotification("Bypasses", applied .. "/5 aplicados automaticamente")
+end)
+
+-- ============================================================
+-- GAME SETTINGS
+-- ============================================================
+local function saveOriginal(valueObj)
+    if valueObj and originalCooldowns[valueObj] == nil then
+        originalCooldowns[valueObj] = valueObj.Value
+    end
+end
+
+local function setValue(parent, name, value, saveOrig)
+    if not parent then return end
+    local v = parent:FindFirstChild(name)
+    if not v then return end
+    if saveOrig then saveOriginal(v) end
+    v.Value = value
+end
+
+local function updateGameSettings()
+    local settings = ReplicatedStorage:FindFirstChild("Settings")
+    if not settings then return end
+    local cooldowns = settings:FindFirstChild("Cooldowns")
+    local multipliers = settings:FindFirstChild("Multipliers")
+    local toggles = settings:FindFirstChild("Toggles")
+
+    if Features.NoCooldown.enabled then
+        if cooldowns then
+            for _, cd in pairs(cooldowns:GetChildren()) do
+                if cd:IsA("NumberValue") then
+                    saveOriginal(cd); cd.Value = 0
+                end
+            end
+        end
+    else
+        if cooldowns then
+            for _, cd in pairs(cooldowns:GetChildren()) do
+                if cd:IsA("NumberValue") and originalCooldowns[cd] ~= nil then
+                    cd.Value = originalCooldowns[cd]
+                end
+            end
+        end
+    end
+
+    if multipliers then
+        setValue(multipliers, "MeleeSpeed", Features.MeleeSpeed, true)
+        setValue(multipliers, "DashSpeed", Features.DashSpeed, true)
+
+        if Features.InfiniteUltimate.enabled then
+            setValue(multipliers, "UltimateTimer", 1e9, true)
+            setValue(multipliers, "UltimateDamage", 1e9, true)
+        else
+            local ut = multipliers:FindFirstChild("UltimateTimer")
+            local ud = multipliers:FindFirstChild("UltimateDamage")
+            if ut and originalCooldowns[ut] ~= nil then ut.Value = originalCooldowns[ut] end
+            if ud and originalCooldowns[ud] ~= nil then ud.Value = originalCooldowns[ud] end
+        end
+    end
+
+    if toggles then
+        setValue(toggles, "DisableHitStun", Features.NoStun.enabled, false)
+        setValue(toggles, "NoStunOnMiss", Features.NoStun.enabled, false)
+        setValue(toggles, "InstantTransformation", Features.InfiniteUltimate.enabled, false)
+        setValue(toggles, "NoSlowdowns", Features.NoSlowdowns.enabled, false)
+        setValue(toggles, "NoJumpFatigue", Features.NoJumpFatigue.enabled, false)
+        setValue(toggles, "MultiUseCutscenes", Features.MultiUseCutscenes.enabled, false)
+        setValue(toggles, "Endless", Features.Endless.enabled, false)
+        setValue(toggles, "DisableCombatTimer", Features.DisableCombatTimer.enabled, false)
+    end
+end
+
+local function restoreAllGameSettings()
+    local settings = ReplicatedStorage:FindFirstChild("Settings")
+    if not settings then return end
+    local cooldowns = settings:FindFirstChild("Cooldowns")
+    if cooldowns then
+        for _, cd in pairs(cooldowns:GetChildren()) do
+            if cd:IsA("NumberValue") and originalCooldowns[cd] ~= nil then
+                cd.Value = originalCooldowns[cd]
+            end
+        end
+    end
+    for obj, val in pairs(originalCooldowns) do
+        pcall(function()
+            if typeof(obj) == "Instance" and obj.Parent then
+                obj.Value = val
+            end
+        end)
+    end
+end
+
+-- ============================================================
+-- INVISIBLE
+-- ============================================================
+local Invisible = {
+    remote = nil,
+    hooked = false,
+    originalCF = nil,
+}
+
+local function hookReplicationRemote(remote)
+    if Invisible.hooked then return end
+    Invisible.hooked = true
+    Invisible.remote = remote
+
+    local mt = getrawmetatable(game)
+    local oldNamecall = mt.__namecall
+    setreadonly(mt, false)
+    mt.__namecall = newcclosure(function(self, ...)
+        if getnamecallmethod() == "FireServer"
+            and self == Invisible.remote
+            and getgenv().InvisibleBlock then
+            return nil
+        end
+        return oldNamecall(self, ...)
+    end)
+    setreadonly(mt, true)
+end
+
+local function toggleInvisible()
+    Features.Invisible.enabled = not Features.Invisible.enabled
+
+    if Features.Invisible.enabled then
+        local char = LocalPlayer.Character
+        if not char then
+            sendNotification("Invisible", "Sem personagem!")
+            Features.Invisible.enabled = false
+            return
+        end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then
+            Features.Invisible.enabled = false
+            return
+        end
+
+        local Remote = ReplicatedStorage:FindFirstChild("Remotes")
+            and ReplicatedStorage.Remotes:FindFirstChild("Replication")
+            and ReplicatedStorage.Remotes.Replication:FindFirstChild("FullCustomReplicationUnreliable")
+        if not Remote then
+            sendNotification("Invisible", "Remote não encontrado!")
+            Features.Invisible.enabled = false
+            return
+        end
+
+        hookReplicationRemote(Remote)
+
+        Invisible.originalCF = hrp.CFrame
+        local flyingCF = Invisible.originalCF + Vector3.new(0, 50000, 0)
+
+        task.spawn(function()
+            for i = 1, 10 do
+                if hrp and hrp.Parent then
+                    hrp.CFrame = flyingCF
+                end
+                pcall(function() Remote:FireServer() end)
+                task.wait(0.1)
+            end
+            getgenv().InvisibleBlock = true
+            if hrp and hrp.Parent and Invisible.originalCF then
+                hrp.CFrame = Invisible.originalCF
+            end
+            sendNotification("Invisible", "Ativado!")
+        end)
+    else
+        getgenv().InvisibleBlock = false
+        sendNotification("Invisible", "Desativado!")
+    end
+end
+
+-- ============================================================
+-- HITBOX EXPANDER
+-- ============================================================
+local HitboxState = {
+    x = 0, y = 0, z = 0,
+    active = false,
+    installed = false,
+    showCircle = false,
+}
+
+local DEFAULT_HITBOX = Vector3.new(5, 4, 5)
+
+local HitboxHooked = false
+local OriginalBox = nil
+local CachedCore = nil
+local OurHookFn = nil
+
+local CircleBox = { part = nil }
+
+local function getOrCreateCirclePart()
+    if CircleBox.part and CircleBox.part.Parent then
+        return CircleBox.part
+    end
+
+    local existing = workspace:FindFirstChild("HitboxVisualizer_xPHub")
+    if existing then existing:Destroy() end
+
+    local part = Instance.new("Part")
+    part.Name = "HitboxVisualizer_xPHub"
+    part.Anchored = true
+    part.CanCollide = false
+    part.CanQuery = false
+    part.CanTouch = false
+    part.Transparency = 0.75
+    part.Material = Enum.Material.ForceField
+    part.Color = Color3.fromRGB(0, 255, 100)
+    part.CastShadow = false
+    part.Parent = workspace
+
+    CircleBox.part = part
+    return part
+end
+
+local function destroyCirclePart()
+    if CircleBox.part then
+        pcall(function() CircleBox.part:Destroy() end)
+        CircleBox.part = nil
+    end
+end
+
+local function updateCircleVisual()
+    if not HitboxState.showCircle then
+        destroyCirclePart()
+        return
+    end
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        destroyCirclePart()
+        return
+    end
+
+    local part = getOrCreateCirclePart()
+
+    local sx, sy, sz
+    if not HitboxState.active then
+        sx, sy, sz = DEFAULT_HITBOX.X, DEFAULT_HITBOX.Y, DEFAULT_HITBOX.Z
+    else
+        sx = math.max(tonumber(HitboxState.x) or 0, 0)
+        sy = math.max(tonumber(HitboxState.y) or 0, 0)
+        sz = math.max(tonumber(HitboxState.z) or 0, 0)
+    end
+
+    local isActiveSize = (sx > 0 or sy > 0 or sz > 0)
+    local visX = sx > 0 and sx or 3
+    local visY = sy > 0 and sy or 3
+    local visZ = sz > 0 and sz or 3
+
+    part.Size = Vector3.new(visX, visY, visZ)
+    part.CFrame = hrp.CFrame
+
+    if isActiveSize and HitboxState.active then
+        part.Color = Color3.fromRGB(0, 255, 100)
+    elseif not HitboxState.active then
+        part.Color = Color3.fromRGB(150, 150, 255)
+    else
+        part.Color = Color3.fromRGB(255, 60, 60)
+    end
+end
+
+task.spawn(function()
+    while true do
+        if HitboxState.showCircle then
+            updateCircleVisual()
+        end
+        task.wait(0.05)
+    end
+end)
+
+local function getCore()
+    if CachedCore then return CachedCore end
+    local ok, core = pcall(function()
+        return require(ReplicatedStorage:WaitForChild("Core"))
+    end)
+    if ok and core then
+        CachedCore = core
+        return core
+    end
+    return nil
+end
+
+local function makeHook()
+    if OurHookFn then return OurHookFn end
+    OurHookFn = newcclosure(function(...)
+        local args = { ... }
+        local char = args[2]
+        local config = args[3]
+
+        if char == nil then
+            return OriginalBox(unpack(args))
+        end
+
+        local sx, sy, sz
+
+        if not HitboxState.active then
+            sx, sy, sz = DEFAULT_HITBOX.X, DEFAULT_HITBOX.Y, DEFAULT_HITBOX.Z
+        else
+            sx = tonumber(HitboxState.x) or 0
+            sy = tonumber(HitboxState.y) or 0
+            sz = tonumber(HitboxState.z) or 0
+
+            if sx == 0 and sy == 0 and sz == 0 then
+                return OriginalBox(unpack(args))
+            end
+        end
+
+        config = config or {}
+        local cur = config.Size or Vector3.new(1, 1, 1)
+
+        config.Size = Vector3.new(
+            sx > 0 and sx or cur.X,
+            sy > 0 and sy or cur.Y,
+            sz > 0 and sz or cur.Z
+        )
+        args[3] = config
+
+        return OriginalBox(unpack(args))
+    end)
+    return OurHookFn
+end
+
+local function ensureHook()
+    local Core = getCore()
+    if not Core then return false end
+
+    local combatHit = Core.Get and Core.Get("Combat", "Hit")
+    if not combatHit or not combatHit.Box then return false end
+
+    if combatHit.Box == OurHookFn then
+        HitboxHooked = true
+        HitboxState.installed = true
+        return true
+    end
+
+    if not OriginalBox then
+        OriginalBox = combatHit.Box
+    end
+
+    pcall(function()
+        combatHit.Box = makeHook()
+    end)
+
+    HitboxHooked = (combatHit.Box == OurHookFn)
+    if HitboxHooked then HitboxState.installed = true end
+    return HitboxHooked
+end
+
+local function restoreHitbox()
+    if not OriginalBox then return end
+    local Core = getCore()
+    if Core then
+        local combatHit = Core.Get and Core.Get("Combat", "Hit")
+        if combatHit then
+            pcall(function() combatHit.Box = OriginalBox end)
+        end
+    end
+    HitboxHooked = false
+    HitboxState.installed = false
+end
+
+task.spawn(function()
+    while true do
+        if HitboxState.installed then
+            ensureHook()
+        end
+        task.wait(0.5)
+    end
+end)
+
+-- ============================================================
+-- KILL AURA RANGE RING
+-- ============================================================
+local KillAuraRing = {
+    folder = nil,
+    segments = {},
+    conn = nil,
+    SEGMENTS = 72,
+}
+
+local function destroyKillAuraRing()
+    if KillAuraRing.folder then
+        pcall(function() KillAuraRing.folder:Destroy() end)
+    end
+    KillAuraRing.folder = nil
+    KillAuraRing.segments = {}
+end
+
+local function createKillAuraRing()
+    local existing = workspace:FindFirstChild("KillAuraRing_xPHub")
+    if existing then existing:Destroy() end
+
+    local folder = Instance.new("Folder")
+    folder.Name = "KillAuraRing_xPHub"
+    folder.Parent = workspace
+
+    KillAuraRing.folder = folder
+    KillAuraRing.segments = {}
+
+    for i = 1, KillAuraRing.SEGMENTS do
+        local seg = Instance.new("Part")
+        seg.Name = "Segment_" .. i
+        seg.Shape = Enum.PartType.Block
+        seg.Anchored = true
+        seg.CanCollide = false
+        seg.CanQuery = false
+        seg.CanTouch = false
+        seg.CastShadow = false
+        seg.Material = Enum.Material.Neon
+        seg.TopSurface = Enum.SurfaceType.Smooth
+        seg.BottomSurface = Enum.SurfaceType.Smooth
+        seg.Color = Color3.fromRGB(30, 80, 190)
+        seg.Transparency = 0.55
+        seg.Parent = folder
+        KillAuraRing.segments[i] = seg
+    end
+end
+
+local function updateKillAuraRing()
+    if not Features.KillAura.showRange then
+        if KillAuraRing.folder then
+            destroyKillAuraRing()
+        end
+        return
+    end
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        if KillAuraRing.folder then
+            destroyKillAuraRing()
+        end
+        return
+    end
+
+    if not KillAuraRing.folder or not KillAuraRing.folder.Parent then
+        createKillAuraRing()
+    end
+
+    local radius = math.max(tonumber(Features.KillAura.config.MaxDistance) or 100, 5)
+    local arcAngle = (2 * math.pi) / KillAuraRing.SEGMENTS
+    local chordLength = 2 * radius * math.sin(arcAngle / 2)
+    local segLength = chordLength * 1.35
+    local thickness = math.max(radius * 0.02, 0.3)
+    local height = 0.1
+
+    local basePos = hrp.Position + Vector3.new(0, 1, 0)
+
+    local isOn = Features.KillAura.enabled
+    local color = isOn and Color3.fromRGB(10, 50, 180) or Color3.fromRGB(30, 80, 190)
+    local transparency = isOn and 0.35 or 0.55
+
+    for i = 1, KillAuraRing.SEGMENTS do
+        local seg = KillAuraRing.segments[i]
+        if seg and seg.Parent then
+            local a = (i - 1) * arcAngle
+            local x = math.cos(a) * radius
+            local z = math.sin(a) * radius
+
+            seg.Size = Vector3.new(segLength, height, thickness)
+            seg.CFrame = CFrame.new(basePos + Vector3.new(x, 0, z))
+                * CFrame.Angles(0, -(a + math.pi / 2), 0)
+            seg.Color = color
+            seg.Transparency = transparency
+        end
+    end
+end
+
+if KillAuraRing.conn then KillAuraRing.conn:Disconnect() end
+KillAuraRing.conn = RunService.RenderStepped:Connect(updateKillAuraRing)
+
+-- ============================================================
+-- HELPERS
+-- ============================================================
+local function getCurrentCharacter()
+    local data = LocalPlayer:FindFirstChild("Data")
+    if data and data:FindFirstChild("Character") then return data.Character.Value end
+    return nil
+end
+
+-- Kill Aura SEM DASH
+local function sendKillAura()
+    if not Features.KillAura.enabled then return end
+    local cfg = Features.KillAura.config
+
+    local character = LocalPlayer.Character
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local charName = getCurrentCharacter()
+    if not charName then return end
+
+    local wallCombo = ReplicatedStorage:FindFirstChild("Characters")
+        and ReplicatedStorage.Characters:FindFirstChild(charName)
+        and ReplicatedStorage.Characters[charName]:FindFirstChild("WallCombo")
+    if not wallCombo then return end
+
+    local abilityRemote = ReplicatedStorage:FindFirstChild("Remotes")
+        and ReplicatedStorage.Remotes:FindFirstChild("Abilities")
+        and ReplicatedStorage.Remotes.Abilities:FindFirstChild("Ability")
+    local combatRemote = ReplicatedStorage:FindFirstChild("Remotes")
+        and ReplicatedStorage.Remotes:FindFirstChild("Combat")
+        and ReplicatedStorage.Remotes.Combat:FindFirstChild("Action")
+    if not abilityRemote or not combatRemote then return end
+
+    local FIXED_DAMAGE = 1
+    local maxDist = tonumber(cfg.MaxDistance) or 100
+
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        if targetPlayer == LocalPlayer then continue end
+        if not targetPlayer.Character then continue end
+
+        local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local targetHumanoid = targetPlayer.Character:FindFirstChild("Humanoid")
+        if not targetHRP or not targetHumanoid then continue end
+        if targetHumanoid.Health <= 0 then continue end
+        if cfg.IgnoreFriends and LocalPlayer:IsFriendsWith(targetPlayer.UserId) then continue end
+        if (hrp.Position - targetHRP.Position).Magnitude > maxDist then continue end
+
+        pcall(function()
+            abilityRemote:FireServer(wallCombo, FIXED_DAMAGE, {}, targetHRP.Position)
+        end)
+
+        local combatArgs = {
+            wallCombo, charName .. ":WallCombo", 2, FIXED_DAMAGE,
+            {
+                HitboxCFrames = { targetHRP.CFrame, targetHRP.CFrame },
+                BestHitCharacter = targetPlayer.Character,
+                HitCharacters = { targetPlayer.Character },
+                Ignore = {}, DeathInfo = {}, BlockedCharacters = {},
+                HitInfo = { IsFacing = false, IsInFront = true },
+                ServerTime = os.time(),
+                Actions = {
+                    ActionNumber1 = {
+                        [targetPlayer.Name] = {
+                            StartCFrameStr = tostring(hrp.CFrame),
+                            Local = true, Collision = false,
+                            Animation = "Punch1Hit", Preset = "Punch",
+                            Velocity = Vector3.zero,
+                            FromPosition = targetHRP.Position,
+                            Seed = math.random(1, 999999)
+                        }
+                    }
+                },
+                FromCFrame = targetHRP.CFrame
+            },
+            "Action150", 0
+        }
+        pcall(function() combatRemote:FireServer(unpack(combatArgs)) end)
+    end
+end
+
+local function tpwalkUpdate()
+    if not Features.TPWalk.enabled then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not hrp or not humanoid then return end
+    if humanoid.MoveDirection.Magnitude > 0 then
+        hrp.CFrame = hrp.CFrame + (humanoid.MoveDirection * Features.TPWalk.config.Speed)
+    end
+end
+
+-- ============================================================
+-- X-RAY
+-- ============================================================
+local function isCharacterPart(v)
+    local char = LocalPlayer.Character
+    if not char then return false end
+    return v:IsDescendantOf(char)
+end
+
+local function applyXRay()
+    local t = Features.XRay.enabled and Features.XRay.config.transparency or 0
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") and not isCharacterPart(v) then
+            v.LocalTransparencyModifier = t
+        end
+    end
+end
+
+local function onNewPart(part)
+    if not part:IsA("BasePart") then return end
+    if not isCharacterPart(part) then
+        part.LocalTransparencyModifier = Features.XRay.enabled and Features.XRay.config.transparency or 0
+    end
+end
+
+local function startXRay()
+    if xrayConnection then xrayConnection:Disconnect() end
+    applyXRay()
+    xrayConnection = workspace.DescendantAdded:Connect(onNewPart)
+end
+
+local function stopXRay()
+    if xrayConnection then xrayConnection:Disconnect(); xrayConnection = nil end
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") and not isCharacterPart(v) then
+            v.LocalTransparencyModifier = 0
+        end
+    end
+end
+
+-- ============================================================
+-- SPAWN PLATFORM
+-- ============================================================
+local function spawnGrayPlatform()
+    local p1, p2 = Vector3.new(33, -9, 824), Vector3.new(1100, -9, -460)
+    local cx, cz = (p1.X + p2.X) / 2, (p1.Z + p2.Z) / 2
+    local sx, sz = math.abs(p2.X - p1.X), math.abs(p2.Z - p1.Z)
+
+    local old = workspace:FindFirstChild("SpawnPlacePlatform")
+    if old then old:Destroy() end
+
+    local part = Instance.new("Part")
+    part.Name = "SpawnPlacePlatform"
+    part.Size = Vector3.new(sx, 1, sz)
+    part.CFrame = CFrame.new(cx, p1.Y, cz)
+    part.Anchored = true
+    part.BrickColor = BrickColor.new("Medium stone grey")
+    part.Material = Enum.Material.SmoothPlastic
+    part.Parent = workspace
+
+    sendNotification("Spawn Place", "Plataforma criada!")
+end
+
+-- ============================================================
+-- TOGGLE MANAGER
+-- ============================================================
+local function toggleFeature(featureName)
+    local feat = Features[featureName]
+    if not feat then return end
+    feat.enabled = not feat.enabled
+
+    local tog = ToggleObjects[featureName]
+    if tog then tog:SetValue(feat.enabled) end
+
+    if featureName == "NoCooldown" or featureName == "NoStun" or featureName == "InfiniteUltimate"
+        or featureName == "NoSlowdowns" or featureName == "NoJumpFatigue"
+        or featureName == "MultiUseCutscenes" or featureName == "Endless" or featureName == "DisableCombatTimer" then
+        updateGameSettings()
+    elseif featureName == "KillAura" then
+        if feat.enabled then
+            if not killAuraConn then killAuraConn = RunService.Heartbeat:Connect(sendKillAura) end
+        else
+            if killAuraConn then killAuraConn:Disconnect(); killAuraConn = nil end
+        end
+    elseif featureName == "TPWalk" then
+        if feat.enabled then
+            if not tpwalkConn then tpwalkConn = RunService.Heartbeat:Connect(tpwalkUpdate) end
+        else
+            if tpwalkConn then tpwalkConn:Disconnect(); tpwalkConn = nil end
+        end
+    elseif featureName == "XRay" then
+        if feat.enabled then startXRay() else stopXRay() end
+    elseif featureName == "Invisible" then
+        if not feat.enabled and getgenv().InvisibleBlock then
+            getgenv().InvisibleBlock = false
+        end
+    end
+
+    sendNotification(featureName, feat.enabled and "Ativado" or "Desativado")
+end
+
+-- ============================================================
+-- UI
+-- ============================================================
+Library.ForceCheckbox = false
+Library.ShowToggleFrameInKeybinds = true
+
+local Window = Library:CreateWindow({
+    Title = "xP Hub",
+    Footer = "Discord: https://discord.gg/kuX4DHkX4n",
+    Icon = 96698707545893,
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+})
+
+local Tabs = {
+    Main = Window:AddTab("Main", "sword"),
+    Rage = Window:AddTab("Rage", "flame"),
+    Config = Window:AddTab("Config", "settings"),
+}
+
+-- ============================================================
+-- ==================== MAIN TAB ==============================
+-- ============================================================
+
+-- ============ MAIN ESQUERDA: Stealth ============
+local mainLeft1 = Tabs.Main:AddLeftGroupbox("Stealth", "ghost")
+
+local invisToggle = mainLeft1:AddToggle("Invisible", {
+    Text = "Invisible", Default = false,
+    Tooltip = "Fica invisível de verdade pro server",
+    Callback = function(v)
+        if v ~= Features.Invisible.enabled then
+            toggleInvisible()
+        end
+    end,
+})
+ToggleObjects.Invisible = invisToggle
+
+mainLeft1:AddLabel("Tecla Invisible"):AddKeyPicker("InvisibleKey", {
+    Default = "Unknown", Mode = "Press", Text = "Invisible",
+    Callback = function() toggleFeature("Invisible") end,
+    ChangedCallback = function(k) Features.Invisible.key = k end,
+})
+
+-- ============ MAIN ESQUERDA: Vantagens ============
+local mainLeft2 = Tabs.Main:AddLeftGroupbox("Vantagens", "star")
+local advToggles = {
+    { "NoCooldown", "Sem Cooldown" },
+    { "NoStun", "Sem Stun" },
+    { "InfiniteUltimate", "Ultimate Infinita" },
+    { "NoSlowdowns", "Sem Slowdown" },
+    { "NoJumpFatigue", "Sem Fadiga de Pulo" },
+    { "MultiUseCutscenes", "Multi-Use Cutscenes" },
+    { "Endless", "Ultimate Infinita (Endless)" },
+    { "DisableCombatTimer", "Sem Combat Timer" },
+}
+for _, t in ipairs(advToggles) do
+    mainLeft2:AddToggle(t[1], {
+        Text = t[2], Default = false,
+        Callback = function(v)
+            Features[t[1]].enabled = v
+            updateGameSettings()
+        end,
+    })
+end
+
+-- ============ MAIN DIREITA: Multipliers ============
+local mainRight1 = Tabs.Main:AddRightGroupbox("Multipliers", "gauge")
+mainRight1:AddSlider("MeleeSpeedSlider", {
+    Text = "Melee Speed", Default = 100, Min = 1, Max = 300, Rounding = 0,
+    Callback = function(v) Features.MeleeSpeed = v; updateGameSettings() end,
+})
+mainRight1:AddSlider("DashSpeedSlider", {
+    Text = "Dash Speed", Default = 100, Min = 1, Max = 300, Rounding = 0,
+    Callback = function(v) Features.DashSpeed = v; updateGameSettings() end,
+})
+
+-- ============ MAIN DIREITA: Hitbox Expander ============
+local mainRight2 = Tabs.Main:AddRightGroupbox("Hitbox Expander", "scan")
+
+local hitboxToggle = mainRight2:AddToggle("HitboxExtender", {
+    Text = "Hitbox Extender", Default = false,
+    Tooltip = "ON = usa X/Y/Z | OFF = hitbox padrão 5/4/5",
+    Callback = function(v)
+        if v then
+            if ensureHook() then
+                HitboxState.active = true
+                updateCircleVisual()
+                sendNotification("Hitbox Extender", "Ativado! " ..
+                    HitboxState.x .. " / " .. HitboxState.y .. " / " .. HitboxState.z)
+            else
+                if hitboxToggle then hitboxToggle:SetValue(false) end
+                sendNotification("Hitbox Extender", "Falha ao aplicar!")
+            end
+        else
+            HitboxState.active = false
+            ensureHook()
+            updateCircleVisual()
+            sendNotification("Hitbox Extender", "Desativado! Padrão 5/4/5.")
+        end
+    end,
+})
+ToggleObjects.HitboxExtender = hitboxToggle
+
+mainRight2:AddToggle("HitboxPreview", {
+    Text = "Hitbox Preview", Default = false,
+    Tooltip = "🟢 Verde = teus valores | 🔵 Azul = padrão 5/4/5 | 🔴 Vermelho = ativo mas 0/0/0",
+    Callback = function(v)
+        HitboxState.showCircle = v
+        if v then
+            updateCircleVisual()
+        else
+            destroyCirclePart()
+        end
+    end,
+})
+
+mainRight2:AddDivider()
+
+mainRight2:AddDropdown("HitboxMethod", {
+    Values = { "Set" }, Default = 1, Multi = false, Text = "Método",
+    Callback = function(v) HitboxState.method = v end,
+})
+
+mainRight2:AddSlider("HitboxX", {
+    Text = "X", Default = 0, Min = 0, Max = 100, Rounding = 0,
+    Callback = function(v) HitboxState.x = v; updateCircleVisual() end,
+})
+mainRight2:AddSlider("HitboxY", {
+    Text = "Y", Default = 0, Min = 0, Max = 100, Rounding = 0,
+    Callback = function(v) HitboxState.y = v; updateCircleVisual() end,
+})
+mainRight2:AddSlider("HitboxZ", {
+    Text = "Z", Default = 0, Min = 0, Max = 100, Rounding = 0,
+    Callback = function(v) HitboxState.z = v; updateCircleVisual() end,
+})
+
+-- ============================================================
+-- ==================== RAGE TAB ==============================
+-- ============================================================
+
+-- ============ RAGE ESQUERDA: Kill Aura ============
+local rageLeft1 = Tabs.Rage:AddLeftGroupbox("Kill Aura", "skull")
+
+local killToggle = rageLeft1:AddToggle("KillAura", {
+    Text = "Kill Aura", Default = false,
+    Callback = function(v)
+        Features.KillAura.enabled = v
+        if v then
+            if not killAuraConn then killAuraConn = RunService.Heartbeat:Connect(sendKillAura) end
+        else
+            if killAuraConn then killAuraConn:Disconnect(); killAuraConn = nil end
+        end
+    end,
+})
+ToggleObjects.KillAura = killToggle
+
+rageLeft1:AddLabel("Tecla Kill Aura"):AddKeyPicker("KillAuraKey", {
+    Default = "Unknown", Mode = "Press", Text = "Kill Aura",
+    Callback = function() toggleFeature("KillAura") end,
+    ChangedCallback = function(k) Features.KillAura.key = k end,
+})
+
+rageLeft1:AddSlider("KAMaxDistance", {
+    Text = "Kill Aura Distance", Default = 100, Min = 10, Max = 300, Rounding = 0, Suffix = " studs",
+    Callback = function(v)
+        Features.KillAura.config.MaxDistance = v
+    end,
+})
+
+rageLeft1:AddToggle("KAShowRange", {
+    Text = "Show Range", Default = false,
+    Tooltip = "Mostra um anel no chão com o range EXATO do Kill Aura",
+    Callback = function(v)
+        Features.KillAura.showRange = v
+        if not v then
+            destroyKillAuraRing()
+        end
+    end,
+})
+
+rageLeft1:AddToggle("KAIgnoreFriends", {
+    Text = "Ignorar Amigos", Default = true,
+    Callback = function(v) Features.KillAura.config.IgnoreFriends = v end,
+})
+
+-- ============ RAGE ESQUERDA: TPWalk ============
+local rageLeft2 = Tabs.Rage:AddLeftGroupbox("TPWalk", "footprints")
+local tpToggle = rageLeft2:AddToggle("TPWalk", {
+    Text = "TPWalk (Atravessar)", Default = false,
+    Callback = function(v)
+        Features.TPWalk.enabled = v
+        if v then
+            if not tpwalkConn then tpwalkConn = RunService.Heartbeat:Connect(tpwalkUpdate) end
+        else
+            if tpwalkConn then tpwalkConn:Disconnect(); tpwalkConn = nil end
+        end
+    end,
+})
+ToggleObjects.TPWalk = tpToggle
+
+rageLeft2:AddLabel("Tecla TPWalk"):AddKeyPicker("TPWalkKey", {
+    Default = "Unknown", Mode = "Press", Text = "TPWalk",
+    Callback = function() toggleFeature("TPWalk") end,
+    ChangedCallback = function(k) Features.TPWalk.key = k end,
+})
+rageLeft2:AddSlider("TPWalkSpeed", {
+    Text = "Velocidade", Default = 1.5, Min = 0.5, Max = 5, Rounding = 1,
+    Callback = function(v) Features.TPWalk.config.Speed = v end,
+})
+
+-- ============ RAGE DIREITA: Utilitários ============
+local rageRight1 = Tabs.Rage:AddRightGroupbox("Utilitários", "box")
+
+local xrayToggle = rageRight1:AddToggle("XRay", {
+    Text = "X-Ray (Ver através de paredes)", Default = false,
+    Callback = function(v)
+        Features.XRay.enabled = v
+        if v then startXRay() else stopXRay() end
+    end,
+})
+ToggleObjects.XRay = xrayToggle
+
+rageRight1:AddLabel("Tecla X-Ray"):AddKeyPicker("XRayKey", {
+    Default = "Unknown", Mode = "Press", Text = "X-Ray",
+    Callback = function() toggleFeature("XRay") end,
+    ChangedCallback = function(k) Features.XRay.key = k end,
+})
+rageRight1:AddSlider("XRayTransparency", {
+    Text = "Transparência", Default = 0.5, Min = 0.1, Max = 0.9, Rounding = 1,
+    Callback = function(v)
+        Features.XRay.config.transparency = v
+        if Features.XRay.enabled then applyXRay() end
+    end,
+})
+
+rageRight1:AddDivider()
+rageRight1:AddButton({
+    Text = "Spawn Place (Plataforma)",
+    Func = spawnGrayPlatform,
+})
+
+-- ============================================================
+-- ============ CONFIG TAB COMPLETO ===========================
+-- ============================================================
+
+-- ============ CONFIG ESQUERDA: DISCORD ============
+local DiscordBox = Tabs.Config:AddLeftGroupbox("Discord", "message-circle")
+local DISCORD_LINK = "https://discord.gg/kuX4DHkX4n"
+
+DiscordBox:AddLabel("Discord Server")
+
+DiscordBox:AddButton({
+    Text = "Discord Link",
+    Func = function()
+        local ok = pcall(function()
+            setclipboard(DISCORD_LINK)
+        end)
+
+        if ok then
+            sendNotification("Discord", "Link copiado! Cole no navegador.")
+        else
+            pcall(function()
+                GuiService:OpenBrowserWindow(DISCORD_LINK)
+            end)
+            sendNotification("Discord", DISCORD_LINK)
+        end
+    end,
+    Tooltip = "Copiar link do Discord",
+})
+
+-- ============ CONFIG ESQUERDA: MENU (com Unload Script dentro) ============
+local menuGroup = Tabs.Config:AddLeftGroupbox("Menu", "wrench")
+
+menuGroup:AddToggle("KeybindMenuOpen", {
+    Default = Library.KeybindFrame.Visible,
+    Text = "Abrir Menu de Keybinds",
+    Tooltip = "Mostra/oculta o menu de keybinds na tela",
+    Callback = function(value)
+        Library.KeybindFrame.Visible = value
+    end,
+})
+
+menuGroup:AddToggle("ShowCustomCursor", {
+    Text = "Cursor Customizado",
+    Default = Library.ShowCustomCursor,
+    Callback = function(Value)
+        Library.ShowCustomCursor = Value
+    end,
+})
+
+menuGroup:AddDropdown("NotificationSide", {
+    Values = { "Left", "Right" },
+    Default = "Right",
+    Text = "Lado das Notificações",
+    Callback = function(Value)
+        Library:SetNotifySide(Value)
+    end,
+})
+
+menuGroup:AddDropdown("DPIDropdown", {
+    Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
+    Default = "100%",
+    Text = "Escala DPI",
+    Callback = function(Value)
+        Value = Value:gsub("%%", "")
+        local DPI = tonumber(Value)
+        Library:SetDPIScale(DPI)
+    end,
+})
+
+menuGroup:AddSlider("UICornerSlider", {
+    Text = "Arredondamento dos Cantos",
+    Default = Library.CornerRadius or 8,
+    Min = 0,
+    Max = 20,
+    Rounding = 0,
+    Callback = function(value)
+        Window:SetCornerRadius(value)
+    end,
+})
+
+menuGroup:AddDivider()
+
+menuGroup:AddLabel("Tecla do Menu"):AddKeyPicker("MenuKeybind", {
+    Default = "LeftAlt", NoUI = true, Text = "Menu keybind",
+    ChangedCallback = function(NewKey) Library.ToggleKeybind = NewKey end,
+})
+Library.ToggleKeybind = Enum.KeyCode.LeftAlt
+
+-- ============ UNLOAD SCRIPT (dentro do Menu) ============
+local function fullUnload()
+    sendNotification("xP Hub", "Descarregando script...")
+
+    for _, key in ipairs({
+        "KillAura","TPWalk","XRay","Invisible","NoCooldown","NoStun",
+        "InfiniteUltimate","NoSlowdowns","NoJumpFatigue","MultiUseCutscenes",
+        "Endless","DisableCombatTimer"
+    }) do
+        if Features[key] then Features[key].enabled = false end
+    end
+
+    pcall(function() if killAuraConn then killAuraConn:Disconnect() end end)
+    pcall(function() if tpwalkConn then tpwalkConn:Disconnect() end end)
+    pcall(function() if xrayConnection then xrayConnection:Disconnect() end end)
+    pcall(function() if KillAuraRing.conn then KillAuraRing.conn:Disconnect() end end)
+    killAuraConn, tpwalkConn, xrayConnection = nil, nil, nil
+
+    pcall(restoreHitbox)
+
+    pcall(function()
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.LocalTransparencyModifier = 0
+            end
+        end
+    end)
+
+    pcall(restoreAllGameSettings)
+    pcall(function() getgenv().InvisibleBlock = false end)
+
+    pcall(destroyCirclePart)
+    pcall(destroyKillAuraRing)
+    pcall(function()
+        local p = workspace:FindFirstChild("SpawnPlacePlatform")
+        if p then p:Destroy() end
+    end)
+    pcall(function()
+        local a = workspace:FindFirstChild("HitboxVisualizer_xPHub")
+        if a then a:Destroy() end
+    end)
+    pcall(function()
+        local b = workspace:FindFirstChild("KillAuraRing_xPHub")
+        if b then b:Destroy() end
+    end)
+
+    task.wait(0.3)
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "xP Hub", Text = "Script descarregado!", Duration = 3
+        })
+    end)
+    task.wait(0.5)
+
+    pcall(function() Library:Unload() end)
+end
+
+menuGroup:AddDivider()
+
+menuGroup:AddButton({
+    Text = "Unload Script",
+    Func = fullUnload,
+    DoubleClick = false,
+    Risky = true,
+    Tooltip = "Descarrega TODO o script e restaura as configs originais",
+})
+
+-- ============================================================
+-- HOOK DO UNLOAD DA LIBRARY
+-- ============================================================
+Library:OnUnload(function()
+    pcall(function() if killAuraConn then killAuraConn:Disconnect() end end)
+    pcall(function() if tpwalkConn then tpwalkConn:Disconnect() end end)
+    pcall(function() if xrayConnection then xrayConnection:Disconnect() end end)
+    pcall(function() if KillAuraRing.conn then KillAuraRing.conn:Disconnect() end end)
+    pcall(function() getgenv().InvisibleBlock = false end)
+    pcall(restoreHitbox)
+    pcall(restoreAllGameSettings)
+    pcall(function()
+        local p = workspace:FindFirstChild("SpawnPlacePlatform"); if p then p:Destroy() end
+        local a = workspace:FindFirstChild("HitboxVisualizer_xPHub"); if a then a:Destroy() end
+        local b = workspace:FindFirstChild("KillAuraRing_xPHub"); if b then b:Destroy() end
+    end)
+end)
+
+-- ============================================================
+-- ADDONS: SaveManager + ThemeManager
+-- ============================================================
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({
+    "MenuKeybind", "KillAuraKey", "TPWalkKey", "XRayKey", "InvisibleKey"
+})
+ThemeManager:SetFolder("xPHub")
+SaveManager:SetFolder("xPHub")
+
+SaveManager:BuildConfigSection(Tabs.Config)
+ThemeManager:ApplyToTab(Tabs.Config)
+
+updateGameSettings()
+sendNotification("xP Hub", "Painel carregado!")
+SaveManager:LoadAutoloadConfig()
