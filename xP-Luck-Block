@@ -1,0 +1,362 @@
+-- ========================================================
+-- xP Hub - Lucky Block Battlegrounds
+-- UI: Obsidian Library
+-- ========================================================
+
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+-- ── Services ─────────────────────────────────────────────────
+local GuiService = game:GetService("GuiService")
+
+-- ========================================================
+-- SERVIÇOS PROTEGIDOS
+-- ========================================================
+local cloneref = cloneref or function(...) return ... end
+local Players = cloneref(game:GetService("Players"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
+local LocalPlayer = Players.LocalPlayer
+
+-- ========================================================
+-- BYPASS LEVE (anti-crash / anti-spam-kick)
+-- ========================================================
+local _unpack = table.unpack or unpack
+local BYPASS_MIN_INTERVAL = 0.10
+local BYPASS_MAX_BURST   = 8
+local lastFireTimes = {}
+
+local function SafeFire(remote, ...)
+    if type(remote) ~= "userdata" and type(remote) ~= "table" then return false end
+    if not remote or not remote.Parent then return false end
+    local ok, isRemote = pcall(function() return remote:IsA("RemoteEvent") end)
+    if not ok or not isRemote then return false end
+
+    local now = os.clock()
+    local last = lastFireTimes[remote] or 0
+    if (now - last) < BYPASS_MIN_INTERVAL then
+        return false
+    end
+    lastFireTimes[remote] = now
+
+    local args = {...}
+    local success = pcall(function()
+        remote:FireServer(_unpack(args))
+    end)
+    return success
+end
+
+local function SafeFireBurst(remote, count, delayBetween)
+    count = math.min(count or 1, BYPASS_MAX_BURST)
+    delayBetween = delayBetween or 0.08
+    task.spawn(function()
+        for i = 1, count do
+            if not remote or not remote.Parent then break end
+            SafeFire(remote)
+            if i < count then
+                task.wait(delayBetween)
+            end
+        end
+    end)
+end
+
+local function GetRemote(name)
+    if not name then return nil end
+    local ok, remote = pcall(function()
+        return ReplicatedStorage:FindFirstChild(name)
+    end)
+    if ok and remote and remote:IsA("RemoteEvent") then
+        return remote
+    end
+    return nil
+end
+
+-- ========================================================
+-- WINDOW
+-- ========================================================
+local Window = Library:CreateWindow({
+    Title = "xP Hub",
+    Footer = "Lucky Block Battlegrounds",
+    Icon = 96698707545893,
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+})
+
+-- ========================================================
+-- TABS
+-- ========================================================
+local Tabs = {
+    Spawner = Window:AddTab("Spawner", "box"),
+    Config  = Window:AddTab("Config", "settings"),
+}
+
+-- ========================================================
+-- 🎲 SPAWNER
+-- ========================================================
+local SpawnLeft = Tabs.Spawner:AddLeftGroupbox("Block Spawner", "box")
+
+SpawnLeft:AddDropdown("SelectedBlockDropdown", {
+    Values = {
+        "LuckyBlock",
+        "SuperBlock",
+        "DiamondBlock",
+        "RainbowBlock",
+        "GalaxyBlock",
+        "VoidBlock",
+    },
+    Default = "LuckyBlock",
+    Multi = false,
+    Text = "Select Block",
+    Tooltip = "Escolha o bloco que deseja spawnar",
+    Callback = function(Value)
+        -- nada por aqui, usado só para seleção
+    end,
+})
+
+SpawnLeft:AddDivider()
+
+SpawnLeft:AddButton({
+    Text = "🎲  Spawn Block",
+    Func = function()
+        local SelectedBlock = Options.SelectedBlockDropdown.Value
+
+        if SelectedBlock == "VoidBlock" then
+            local RainbowEvent = GetRemote("SpawnRainbowBlock")
+            local GalaxyEvent  = GetRemote("SpawnGalaxyBlock")
+            if RainbowEvent and GalaxyEvent then
+                SafeFireBurst(GalaxyEvent, 4, 0.08)
+                task.wait(0.15)
+                SafeFireBurst(RainbowEvent, 4, 0.08)
+                task.wait(0.15)
+                SafeFireBurst(RainbowEvent, 2, 0.08)
+
+                Library:Notify({
+                    Title = "VoidBlock",
+                    Description = "Blocos especiais spawnados!",
+                    Time = 3,
+                })
+            else
+                Library:Notify({
+                    Title = "Erro",
+                    Description = "RemoteEvents não encontrados!",
+                    Time = 4,
+                })
+            end
+        else
+            local RemoteEvent = GetRemote("Spawn" .. SelectedBlock)
+            if RemoteEvent then
+                SafeFire(RemoteEvent)
+                Library:Notify({
+                    Title = "Spawn",
+                    Description = SelectedBlock .. " spawnado!",
+                    Time = 2,
+                })
+            else
+                Library:Notify({
+                    Title = "Erro",
+                    Description = "RemoteEvent não encontrado: Spawn" .. SelectedBlock,
+                    Time = 4,
+                })
+            end
+        end
+    end,
+    DoubleClick = false,
+    Tooltip = "Spawna o bloco selecionado",
+})
+
+-- ========================================================
+-- UTILITÁRIOS
+-- ========================================================
+local UtilGroup = Tabs.Spawner:AddRightGroupbox("Ferramentas", "wrench")
+
+UtilGroup:AddButton({
+    Text = "🧹  Clear Tools",
+    Func = function()
+        local ok = pcall(function()
+            local Backpack = LocalPlayer.Backpack
+            if Backpack then Backpack:ClearAllChildren() end
+
+            local Character = LocalPlayer.Character
+            if Character then
+                for _, Child in ipairs(Character:GetChildren()) do
+                    if Child:IsA("Tool") then Child:Destroy() end
+                end
+            end
+        end)
+
+        if ok then
+            Library:Notify({
+                Title = "Ferramentas",
+                Description = "Todas as ferramentas foram removidas!",
+                Time = 3,
+            })
+        else
+            Library:Notify({
+                Title = "Erro",
+                Description = "Falha ao limpar ferramentas.",
+                Time = 3,
+            })
+        end
+    end,
+    DoubleClick = false,
+    Tooltip = "Limpa todas as ferramentas do inventário",
+})
+
+UtilGroup:AddDivider()
+
+UtilGroup:AddLabel("Bloco atual: LuckyBlock", true, "CurrentBlockLabel")
+
+Options.SelectedBlockDropdown:OnChanged(function()
+    Options.CurrentBlockLabel:SetText("Bloco atual: " .. Options.SelectedBlockDropdown.Value)
+end)
+
+-- ========================================================
+-- ⚙️ CONFIG
+-- ========================================================
+
+-- ── Discord Box ──────────────────────────────────────────────
+local DiscordBox = Tabs.Config:AddLeftGroupbox("Discord", "message-circle")
+local DISCORD_LINK = "https://discord.gg/kuX4DHkX4n"
+
+DiscordBox:AddLabel("Join Discord Server")
+
+DiscordBox:AddButton({
+    Text = "Discord Link",
+    Func = function()
+        local success = pcall(function()
+            if setclipboard then
+                setclipboard(DISCORD_LINK)
+            elseif toclipboard then
+                toclipboard(DISCORD_LINK)
+            elseif syn and syn.write_clipboard then
+                syn.write_clipboard(DISCORD_LINK)
+            else
+                error("Nenhuma função de clipboard disponível")
+            end
+        end)
+
+        if success then
+            Library:Notify({
+                Title = "Discord",
+                Description = "Link copiado!\n" .. DISCORD_LINK,
+                Time = 4,
+            })
+        else
+            pcall(function()
+                GuiService:OpenBrowserWindow(DISCORD_LINK)
+            end)
+            Library:Notify({
+                Title = "Discord",
+                Description = "Link:\n" .. DISCORD_LINK,
+                Time = 6,
+            })
+        end
+    end,
+    Tooltip = "Copia o link do Discord para a área de transferência",
+})
+
+-- ── Menu ─────────────────────────────────────────────────────
+local MenuGroup = Tabs.Config:AddLeftGroupbox("Menu", "wrench")
+
+MenuGroup:AddToggle("KeybindMenuOpen", {
+    Default = Library.KeybindFrame.Visible,
+    Text = "Open Keybind Menu",
+    Callback = function(value)
+        Library.KeybindFrame.Visible = value
+    end,
+})
+
+MenuGroup:AddToggle("ShowCustomCursor", {
+    Text = "Custom Cursor",
+    Default = Library.ShowCustomCursor,
+    Callback = function(Value)
+        Library.ShowCustomCursor = Value
+    end,
+})
+
+MenuGroup:AddDropdown("NotificationSide", {
+    Values = { "Left", "Right" },
+    Default = "Right",
+    Text = "Notification Side",
+    Callback = function(Value)
+        Library:SetNotifySide(Value)
+    end,
+})
+
+MenuGroup:AddDropdown("DPIDropdown", {
+    Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
+    Default = "100%",
+    Text = "DPI Scale",
+    Callback = function(Value)
+        Value = Value:gsub("%%", "")
+        local DPI = tonumber(Value)
+        Library:SetDPIScale(DPI)
+    end,
+})
+
+MenuGroup:AddSlider("UICornerSlider", {
+    Text = "Corner Radius",
+    Default = Library.CornerRadius,
+    Min = 0,
+    Max = 20,
+    Rounding = 0,
+    Callback = function(value)
+        Window:SetCornerRadius(value)
+    end,
+})
+
+MenuGroup:AddDivider()
+
+MenuGroup:AddLabel("Menu bind")
+    :AddKeyPicker("MenuKeybind", {
+        Default = "LeftAlt",
+        NoUI = true,
+        Text = "Menu keybind",
+    })
+
+MenuGroup:AddButton({
+    Text = "Unload",
+    Func = function()
+        Library:Unload()
+    end,
+    Risky = true,
+})
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+-- ========================================================
+-- ADDONS (Temas e Configs)
+-- ========================================================
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+ThemeManager:SetFolder("xP Hub")
+SaveManager:SetFolder("xP Hub/Lucky Block Battlegrounds")
+SaveManager:BuildConfigSection(Tabs.Config)
+ThemeManager:ApplyToTab(Tabs.Config)
+SaveManager:LoadAutoloadConfig()
+
+-- ========================================================
+-- NOTIFICAÇÃO DE BOAS-VINDAS
+-- ========================================================
+Library:Notify({
+    Title = "xP Hub",
+    Description = "Script carregado com sucesso! 🎲",
+    Time = 4,
+})
+
+Library:Notify({
+    Title = "Lucky Block Battlegrounds",
+    Description = "Bypass ativo. Sem crash.",
+    Time = 5,
+})
+
+Library:OnUnload(function()
+    print("[xP Hub] Script descarregado!")
+end)
