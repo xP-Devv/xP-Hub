@@ -1,0 +1,447 @@
+-- ============================================================
+-- xP Hub - Murder mystery 2
+-- UI: Obsidian UI Library
+-- ============================================================
+
+-- ============================================================
+-- OBSIDIAN UI LIBRARY
+-- ============================================================
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library      = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager  = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+-- ============================================================
+-- SERVIÇOS
+-- ============================================================
+local GuiService       = game:GetService("GuiService")
+local ReplicatedStorage= game:GetService("ReplicatedStorage")
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local LP          = LocalPlayer
+
+Library.ForceCheckbox = false
+Library.ShowToggleFrameInKeybinds = true
+
+-- ============================================================
+-- JANELA PRINCIPAL
+-- ============================================================
+local Window = Library:CreateWindow({
+    Title = "xP Hub",
+    Footer = "Discord Link: https://discord.gg/sUhyccqrHs",
+    Icon = 96698707545893,
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+})
+
+local Tabs = {
+    Misc   = Window:AddTab("Misc",   "sword"),
+    Config = Window:AddTab("Config", "settings"),
+}
+
+-- ============================================================
+-- BYPASS SEGURO (interno, sem UI)
+-- ============================================================
+local Bypass = {
+    AntiKick = true, AntiAC = true, AntiAFK = true,
+    _afkConn = nil, _kickHookInstalled = false,
+}
+
+local function SafeExec(fn, ...)
+    local ok, result = pcall(fn, ...)
+    if ok then return result end
+    return nil
+end
+
+local function InstallAntiKickHook()
+    if Bypass._kickHookInstalled then return end
+    if typeof(hookmetamethod) ~= "function" then return end
+    if typeof(getnamecallmethod) ~= "function" then return end
+    SafeExec(function()
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local ok, method = pcall(getnamecallmethod)
+            if ok and method == "Kick" and self == LP and Bypass.AntiKick then return end
+            return oldNamecall(self, ...)
+        end)
+        Bypass._kickHookInstalled = true
+    end)
+end
+
+local function InstallAntiAFK()
+    if Bypass._afkConn then return end
+    SafeExec(function()
+        local vu = game:GetService("VirtualUser")
+        Bypass._afkConn = LP.Idled:Connect(function()
+            SafeExec(function()
+                vu:CaptureController()
+                vu:ClickButton2(Vector2.new())
+            end)
+        end)
+    end)
+end
+
+InstallAntiKickHook()
+InstallAntiAFK()
+
+-- ============================================================
+-- BACKEND MM2
+-- ============================================================
+local Murder, Sheriff, Hero
+local roles
+local playerData = {}
+
+local function notificar(texto)
+    pcall(function()
+        Library:Notify({
+            Title = "xP Hub",
+            Description = texto,
+            Time = 3,
+        })
+    end)
+end
+
+local function getMap()
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:FindFirstChild("CoinContainer") and obj:FindFirstChild("Spawns") then
+            return obj
+        end
+    end
+    return nil
+end
+
+local function IsAlive(playerName)
+    if playerData and playerData[playerName] then
+        return not playerData[playerName].Killed and not playerData[playerName].Dead
+    end
+    return false
+end
+
+local espMurderer = false
+local espSheriff  = false
+local espHero     = false
+local espInnocent = false
+local gunDropESP  = false
+local gunDropHighlight = nil
+
+local function CreateHighlight()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr == LP then continue end
+        if plr.Character and not plr.Character:FindFirstChild("Highlight") then
+            local hl = Instance.new("Highlight", plr.Character)
+            hl.Name = "Highlight"
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.FillTransparency = 0.4
+            hl.OutlineTransparency = 0.2
+            hl.Enabled = false
+        end
+    end
+end
+
+local function UpdateHighlights()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr == LP then continue end
+        local hl = plr.Character and plr.Character:FindFirstChild("Highlight")
+        if not hl then continue end
+
+        local papel = "Innocent"
+        if plr.Name == Murder and IsAlive(plr.Name) then papel = "Murderer"
+        elseif plr.Name == Sheriff and IsAlive(plr.Name) then papel = "Sheriff"
+        elseif plr.Name == Hero and IsAlive(plr.Name) and not IsAlive(Sheriff) then papel = "Hero"
+        end
+
+        local enable = false
+        local cor = Color3.fromRGB(0, 225, 0)
+        if papel == "Murderer" and espMurderer then
+            enable = true; cor = Color3.fromRGB(225, 0, 0)
+        elseif papel == "Sheriff" and espSheriff then
+            enable = true; cor = Color3.fromRGB(0, 0, 225)
+        elseif papel == "Hero" and espHero then
+            enable = true; cor = Color3.fromRGB(255, 250, 0)
+        elseif papel == "Innocent" and espInnocent then
+            enable = true; cor = Color3.fromRGB(0, 225, 0)
+        end
+
+        hl.Enabled = enable
+        if enable then
+            hl.FillColor = cor
+            hl.OutlineColor = cor
+        end
+    end
+end
+
+local function refreshHighlights()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Character then
+            local hl = plr.Character:FindFirstChild("Highlight")
+            if hl then hl:Destroy() end
+        end
+    end
+    CreateHighlight()
+    UpdateHighlights()
+end
+
+local function updateGunDropESP()
+    if gunDropHighlight then gunDropHighlight:Destroy(); gunDropHighlight = nil end
+    local map = getMap()
+    if gunDropESP and map and map:FindFirstChild("GunDrop") then
+        local drop = map:FindFirstChild("GunDrop")
+        gunDropHighlight = Instance.new("Highlight")
+        gunDropHighlight.Name = "GunDropESP"
+        gunDropHighlight.Adornee = drop
+        gunDropHighlight.FillColor = Color3.fromRGB(255, 255, 0)
+        gunDropHighlight.OutlineColor = Color3.fromRGB(255, 200, 0)
+        gunDropHighlight.FillTransparency = 0.3
+        gunDropHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        gunDropHighlight.Parent = workspace
+        notificar("Arma dropada! Destaque amarelo.")
+    end
+end
+
+workspace.DescendantAdded:Connect(function(child)
+    if child.Name == "GunDrop" and child:IsA("BasePart") then updateGunDropESP() end
+end)
+
+workspace.DescendantRemoving:Connect(function(child)
+    if child.Name == "GunDrop" and child:IsA("BasePart") then
+        if gunDropHighlight then gunDropHighlight:Destroy(); gunDropHighlight = nil end
+        notificar("Arma dropada foi recolhida ou sumiu.")
+    end
+end)
+
+local function teleportToDroppedGun()
+    local map = getMap()
+    if not map then notificar("Mapa não encontrado."); return end
+    local drop = map:FindFirstChild("GunDrop")
+    if not drop then notificar("Nenhuma arma dropada."); return end
+    local char = LP.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then
+        notificar("Personagem não disponível."); return
+    end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local oldPos = hrp.CFrame
+    hrp.CFrame = drop.CFrame + Vector3.new(0, 2, 0)
+    task.wait(0.3)
+    hrp.CFrame = oldPos
+    notificar("Teleportado para a arma e voltado.")
+end
+
+-- ============================================================
+-- ⚔️ MISC
+-- ============================================================
+local ESPLeft = Tabs.Misc:AddLeftGroupbox("ESP - Jogadores", "users")
+
+ESPLeft:AddToggle("MurdererESP", {
+    Text = "ESP Assassino",
+    Default = false,
+    Tooltip = "Destaca o assassino em vermelho",
+    Callback = function(Value)
+        espMurderer = Value
+        UpdateHighlights()
+    end,
+})
+
+ESPLeft:AddToggle("SheriffESP", {
+    Text = "ESP Xerife",
+    Default = false,
+    Tooltip = "Destaca o xerife em azul",
+    Callback = function(Value)
+        espSheriff = Value
+        UpdateHighlights()
+    end,
+})
+
+ESPLeft:AddToggle("HeroESP", {
+    Text = "ESP Herói",
+    Default = false,
+    Tooltip = "Destaca o herói em amarelo",
+    Callback = function(Value)
+        espHero = Value
+        UpdateHighlights()
+    end,
+})
+
+ESPLeft:AddToggle("InnocentESP", {
+    Text = "ESP Inocentes",
+    Default = false,
+    Tooltip = "Destaca os inocentes em verde",
+    Callback = function(Value)
+        espInnocent = Value
+        UpdateHighlights()
+    end,
+})
+
+local ESPRight = Tabs.Misc:AddRightGroupbox("ESP - Objetos & Ações", "target")
+
+ESPRight:AddToggle("GunDropESP", {
+    Text = "ESP Arma Dropada",
+    Default = false,
+    Tooltip = "Destaca a arma no chão em amarelo",
+    Callback = function(Value)
+        gunDropESP = Value
+        updateGunDropESP()
+    end,
+})
+
+ESPRight:AddDivider()
+
+ESPRight:AddButton({
+    Text = "Refresh ESP",
+    Func = function()
+        refreshHighlights()
+        notificar("ESP atualizado.")
+    end,
+    Tooltip = "Recria todos os Highlights do zero",
+})
+
+ESPRight:AddButton({
+    Text = "Gun Teleport",
+    Func = function()
+        teleportToDroppedGun()
+    end,
+    Tooltip = "Teleporta até a arma dropada e volta",
+})
+
+-- ============================================================
+-- ⚙️ CONFIG
+-- ============================================================
+
+-- ✅ Discord (lado esquerdo, EM CIMA)
+local DiscordBox = Tabs.Config:AddLeftGroupbox("Discord", "message-circle")
+local DISCORD_LINK = "https://discord.gg/sUhyccqrHs"
+
+DiscordBox:AddLabel("Join Discord Server")
+
+-- ✅ Botão copia o link para a área de transferência
+DiscordBox:AddButton({
+    Text = "Discord Link",
+    Func = function()
+        local success = pcall(function()
+            setclipboard(DISCORD_LINK)
+        end)
+        if success then
+            notificar("Discord Link copiado: " .. DISCORD_LINK)
+        else
+            notificar("Não foi possível copiar. Link: " .. DISCORD_LINK)
+        end
+    end,
+})
+
+-- ✅ Menu (lado esquerdo, EMBAIXO do Discord)
+local MenuGroup = Tabs.Config:AddLeftGroupbox("Menu", "wrench")
+
+MenuGroup:AddToggle("KeybindMenuOpen", {
+    Default = Library.KeybindFrame.Visible,
+    Text = "Abrir Menu de Keybinds",
+    Callback = function(value)
+        Library.KeybindFrame.Visible = value
+    end,
+})
+
+MenuGroup:AddToggle("ShowCustomCursor", {
+    Text = "Cursor Customizado",
+    Default = Library.ShowCustomCursor,
+    Callback = function(Value)
+        Library.ShowCustomCursor = Value
+    end,
+})
+
+MenuGroup:AddDropdown("NotificationSide", {
+    Values = { "Left", "Right" },
+    Default = "Right",
+    Text = "Lado das Notificações",
+    Callback = function(Value)
+        Library:SetNotifySide(Value)
+    end,
+})
+
+MenuGroup:AddDropdown("DPIDropdown", {
+    Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
+    Default = "100%",
+    Text = "DPI Scale",
+    Callback = function(Value)
+        Value = Value:gsub("%%", "")
+        local DPI = tonumber(Value)
+        Library:SetDPIScale(DPI)
+    end,
+})
+
+MenuGroup:AddSlider("UICornerSlider", {
+    Text = "Corner Radius",
+    Default = Library.CornerRadius,
+    Min = 0,
+    Max = 20,
+    Rounding = 0,
+    Callback = function(value)
+        Window:SetCornerRadius(value)
+    end,
+})
+
+MenuGroup:AddDivider()
+MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", {
+    Default = "LeftAlt",
+    NoUI = true,
+    Text = "Menu keybind",
+})
+
+MenuGroup:AddDivider()
+
+-- ✅ Unload Script dentro do Menu groupbox
+MenuGroup:AddButton({
+    Text = "Unload Script",
+    Func = function()
+        pcall(function()
+            if Bypass._afkConn then Bypass._afkConn:Disconnect() end
+        end)
+        Library:Unload()
+    end,
+    Risky = true,
+})
+
+-- ✅ Ativa o LeftAlt como toggle do menu automaticamente
+Library.ToggleKeybind = Options.MenuKeybind
+
+-- ============================================================
+-- THEME + SAVE MANAGERS
+-- ============================================================
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+
+ThemeManager:SetFolder("xPHub")
+SaveManager:SetFolder("xPHub/mm2")
+
+SaveManager:BuildConfigSection(Tabs.Config)
+ThemeManager:ApplyToTab(Tabs.Config)
+
+-- ============================================================
+-- ✅ LOOP PRINCIPAL — IDÊNTICO AO ORIGINAL (RenderStepped)
+-- ============================================================
+RunService.RenderStepped:Connect(function()
+    local success, data = pcall(function()
+        return ReplicatedStorage:FindFirstChild("GetPlayerData", true):InvokeServer()
+    end)
+    if success and data then
+        roles = data
+        playerData = data
+        for nome, info in pairs(data) do
+            if info.Role == "Murderer" then Murder = nome
+            elseif info.Role == "Sheriff" then Sheriff = nome
+            elseif info.Role == "Hero" then Hero = nome
+            end
+        end
+        CreateHighlight()
+        UpdateHighlights()
+    end
+end)
+
+task.wait(0.5)
+notificar("✅ xP Hub carregado com sucesso!")
