@@ -1,0 +1,2146 @@
+-- ==========================================================================
+-- PARTE 1: xP Hub - Ride A Pet
+-- ==========================================================================
+
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+
+local Theme = {
+    Background = Color3.fromRGB(15, 15, 15),
+    Sidebar = Color3.fromRGB(10, 10, 10),
+    ElementBG = Color3.fromRGB(22, 22, 22),
+    GroupboxBG = Color3.fromRGB(18, 18, 18),
+    Separator = Color3.fromRGB(45, 45, 45),
+    SearchBG = Color3.fromRGB(30, 30, 30),
+    Accent = Color3.fromRGB(8, 65, 135),
+    Text = Color3.fromRGB(255, 255, 255),
+    TextDim = Color3.fromRGB(140, 140, 140),
+    ToggleOn = Color3.fromRGB(8, 65, 135),
+    ToggleOff = Color3.fromRGB(50, 50, 50),
+    SliderFill = Color3.fromRGB(8, 65, 135),
+    TopBar = Color3.fromRGB(19, 19, 19),
+    Profile = Color3.fromRGB(21, 21, 21),
+    TabsBG = Color3.fromRGB(16, 16, 16),
+    LogAdd = Color3.fromRGB(80, 220, 120),
+    LogRemove = Color3.fromRGB(220, 70, 70),
+    LogFix = Color3.fromRGB(240, 200, 60),
+}
+
+local ORIGINAL_COLOR = Color3.fromRGB(8, 65, 135)
+local NotificationsEnabled = true
+_G.__KeybindJustSet = nil
+_G.__xPHub_Unloaded = false
+
+local function Create(instance, properties, children)
+    local obj = Instance.new(instance)
+    for k, v in pairs(properties) do obj[k] = v end
+    if children then
+        for _, child in ipairs(children) do child.Parent = obj end
+    end
+    return obj
+end
+
+local function Tween(obj, time, properties)
+    TweenService:Create(obj, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), properties):Play()
+end
+
+local Library = {}
+Library.__index = Library
+
+local CreatedElements = {
+    Toggles = {}, Sliders = {}, Checkboxes = {}, TabButtons = {},
+    Keybinds = {}, Notifications = {}, NotifAccentBars = {},
+}
+
+local NotifContainer
+
+function Library:Notify(title, text, duration)
+    if not NotificationsEnabled then return end
+    if not NotifContainer then return end
+    duration = duration or 4
+
+    local Notif = Create("Frame", {
+        Size = UDim2.new(0, 280, 0, 60),
+        Position = UDim2.new(1, 320, 0, 0),
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        BorderSizePixel = 0,
+        ClipsDescendants = false,
+        Parent = NotifContainer
+    }, {
+        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+        Create("UIStroke", {Color = Color3.fromRGB(45, 45, 45), Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
+    })
+
+    local ClickBtn = Create("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, ZIndex = 5, Parent = Notif})
+    local AccentBar = Create("Frame", {Size = UDim2.new(0, 4, 1, 0), BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Parent = Notif}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+    table.insert(CreatedElements.NotifAccentBars, AccentBar)
+
+    Create("TextLabel", {Size = UDim2.new(1, -25, 0, 20), Position = UDim2.new(0, 15, 0, 8), BackgroundTransparency = 1, Text = title, TextColor3 = Color3.fromRGB(255,255,255), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = Notif})
+    Create("TextLabel", {Size = UDim2.new(1, -25, 0, 22), Position = UDim2.new(0, 15, 0, 28), BackgroundTransparency = 1, Text = text, TextColor3 = Color3.fromRGB(180,180,180), Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = true, Parent = Notif})
+
+    local isClosing = false
+    local function closeNotif()
+        if isClosing then return end
+        isClosing = true
+        for i, n in ipairs(CreatedElements.Notifications) do
+            if n == Notif then table.remove(CreatedElements.Notifications, i); break end
+        end
+        Tween(Notif, 0.35, {Position = UDim2.new(1, 320, 0, Notif.Position.Y.Offset), BackgroundTransparency = 1})
+        for _, child in pairs(Notif:GetDescendants()) do
+            if child:IsA("TextLabel") then Tween(child, 0.35, {TextTransparency = 1})
+            elseif child:IsA("Frame") and child ~= Notif then Tween(child, 0.35, {BackgroundTransparency = 1})
+            elseif child:IsA("UIStroke") then Tween(child, 0.35, {Transparency = 1}) end
+        end
+        task.wait(0.4)
+        if Notif and Notif.Parent then Notif:Destroy() end
+    end
+
+    ClickBtn.MouseButton1Click:Connect(closeNotif)
+    ClickBtn.MouseEnter:Connect(function() Tween(Notif, 0.2, {BackgroundColor3 = Color3.fromRGB(30,30,30)}) end)
+    ClickBtn.MouseLeave:Connect(function() Tween(Notif, 0.2, {BackgroundColor3 = Color3.fromRGB(20,20,20)}) end)
+    Tween(Notif, 0.4, {Position = UDim2.new(1, -295, 0, 0)})
+    table.insert(CreatedElements.Notifications, Notif)
+    task.delay(duration, function() closeNotif() end)
+end
+
+local function NotifyToggle(t, s) Library:Notify(t, "Status: " .. (s and "Ativado" or "Desativado"), 3) end
+local function NotifyCheckbox(t, s) Library:Notify(t, "Status: " .. (s and "Marcado" or "Desmarcado"), 3) end
+local function NotifySlider(t, v) Library:Notify(t, "Valor definido: " .. v, 3) end
+
+function Library:CreateWindow(title, subtitle, logoId)
+    local Window = {}
+    setmetatable(Window, Library)
+    Window.Tabs = {}
+    Window.ActiveTab = nil
+
+    Window.ScreenGui = Create("ScreenGui", {Name = "xP_UI_Library", Parent = CoreGui, ZIndexBehavior = Enum.ZIndexBehavior.Sibling})
+
+    Window.MainFrame = Create("Frame", {Name = "MainFrame", Size = UDim2.new(0, 700, 0, 450), Position = UDim2.new(0.5, -350, 0.5, -225), BackgroundColor3 = Theme.Background, BorderSizePixel = 0, ClipsDescendants = true, Parent = Window.ScreenGui}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+    Window.UIScale = Create("UIScale", {Name = "MenuScale", Scale = 1, Parent = Window.MainFrame})
+
+    NotifContainer = Create("Frame", {Name = "NotifContainer", Size = UDim2.new(0, 320, 1, -20), Position = UDim2.new(1, -330, 0, 10), BackgroundTransparency = 1, Parent = Window.ScreenGui}, {
+        Create("UIListLayout", {Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Top, HorizontalAlignment = Enum.HorizontalAlignment.Right})
+    })
+
+    local TopBar = Create("Frame", {Name = "TopBar", Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Theme.TopBar, Parent = Window.MainFrame}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+
+    if logoId then
+        Create("ImageLabel", {Size = UDim2.new(0, 40, 0, 40), Position = UDim2.new(0, 15, 0.5, -18), BackgroundTransparency = 1, Image = "rbxassetid://" .. logoId, Parent = TopBar})
+    end
+    Create("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(0, 65, 0, 0), BackgroundTransparency = 1, Text = title, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, Parent = TopBar})
+    Create("TextLabel", {Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 135, 0, 0), BackgroundTransparency = 1, Text = "|  " .. subtitle, TextColor3 = Theme.TextDim, Font = Enum.Font.Gotham, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Parent = TopBar})
+
+    local CloseBtn = Create("TextButton", {Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -40, 0.5, -15), BackgroundTransparency = 1, Text = "X", TextColor3 = Theme.TextDim, Font = Enum.Font.GothamBold, TextSize = 14, Parent = TopBar})
+    CloseBtn.MouseButton1Click:Connect(function() Window.ScreenGui:Destroy() end)
+
+    local dragging, dragInput, dragStart, startPos
+    TopBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true; dragStart = input.Position; startPos = Window.MainFrame.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    TopBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            Window.MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    Window.Sidebar = Create("Frame", {Size = UDim2.new(0, 180, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = Theme.Sidebar, BorderSizePixel = 0, Parent = Window.MainFrame})
+
+    Window.TabsContainer = Create("Frame", {Name = "TabsContainer", Size = UDim2.new(1, -20, 1, -80), Position = UDim2.new(0, 10, 0, 10), BackgroundColor3 = Theme.TabsBG, BorderSizePixel = 0, Parent = Window.Sidebar}, {
+        Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
+        Create("UIListLayout", {Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}),
+        Create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8)})
+    })
+
+    local ProfileFrame = Create("Frame", {Size = UDim2.new(0, 160, 0, 50), Position = UDim2.new(0, 10, 1, -60), BackgroundColor3 = Theme.Profile, Parent = Window.MainFrame}, {
+        Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
+        Create("UIStroke", {Color = Theme.Profile, Thickness = 1.5, Transparency = 0.2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
+    })
+    Create("ImageLabel", {Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(0, 10, 0.5, -16), BackgroundColor3 = Theme.ToggleOff, Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=150&h=150", Parent = ProfileFrame}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+    Create("TextLabel", {Size = UDim2.new(1, -50, 0, 14), Position = UDim2.new(0, 48, 0, 9), BackgroundTransparency = 1, Text = LocalPlayer.DisplayName, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Parent = ProfileFrame})
+    Create("TextLabel", {Size = UDim2.new(1, -50, 0, 12), Position = UDim2.new(0, 48, 0, 24), BackgroundTransparency = 1, Text = "@" .. LocalPlayer.Name, TextColor3 = Theme.TextDim, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, Parent = ProfileFrame})
+
+    Window.PagesContainer = Create("Frame", {Size = UDim2.new(1, -180, 1, -45), Position = UDim2.new(0, 180, 0, 45), BackgroundTransparency = 1, Parent = Window.MainFrame})
+
+    return Window
+end
+
+function Library:SelectTab(tabName)
+    for _, tab in pairs(self.Tabs) do
+        if tab.Name == tabName then
+            for _, otherTab in pairs(self.Tabs) do
+                otherTab.Button.BackgroundColor3 = Theme.TabsBG
+                otherTab.Button.Font = Enum.Font.GothamSemibold
+                otherTab.Page.Visible = false
+            end
+            tab.Button.BackgroundColor3 = Theme.Accent
+            tab.Button.Font = Enum.Font.GothamBold
+            tab.Page.Visible = true
+            self.ActiveTab = tab
+            return true
+        end
+    end
+    return false
+end
+
+function Library:UpdateTheme(newColor)
+    Theme.Accent = newColor
+    Theme.ToggleOn = newColor
+    Theme.SliderFill = newColor
+    for _, tabBtn in pairs(CreatedElements.TabButtons) do
+        if tabBtn.BackgroundColor3 ~= Theme.Sidebar and tabBtn.BackgroundColor3 ~= Theme.TabsBG then
+            tabBtn.BackgroundColor3 = newColor
+        end
+    end
+    for _, t in pairs(CreatedElements.Toggles) do if t.State then t.Btn.BackgroundColor3 = newColor end end
+    for _, s in pairs(CreatedElements.Sliders) do s.Fill.BackgroundColor3 = newColor; s.ValueLabel.TextColor3 = newColor end
+    for _, c in pairs(CreatedElements.Checkboxes) do if c.State then c.Box.BackgroundColor3 = newColor end end
+    for _, k in pairs(CreatedElements.Keybinds) do k.Btn.TextColor3 = newColor end
+    for _, a in pairs(CreatedElements.NotifAccentBars) do if a and a.Parent then a.BackgroundColor3 = newColor end end
+end
+
+function Library:CreateTab(name, icon)
+    local Tab = {}
+    Tab.Name = name
+    Tab.Elements = {}
+    local screenGui = self.ScreenGui
+
+    Tab.Button = Create("TextButton", {Name = name, Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = Theme.TabsBG, Text = "  " .. icon .. "  " .. name, TextColor3 = Theme.Text, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, Parent = self.TabsContainer}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+    table.insert(CreatedElements.TabButtons, Tab.Button)
+
+    Tab.Page = Create("ScrollingFrame", {Name = name, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = false, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = Theme.Accent, ScrollBarImageTransparency = 0.3, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollingDirection = Enum.ScrollingDirection.Y, ElasticBehavior = Enum.ElasticBehavior.Never, Parent = self.PagesContainer}, {
+        Create("UIListLayout", {Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder}),
+        Create("UIPadding", {PaddingTop = UDim.new(0, 20), PaddingBottom = UDim.new(0, 20), PaddingLeft = UDim.new(0, 20), PaddingRight = UDim.new(0, 20)})
+    })
+
+    Tab.Button.MouseButton1Click:Connect(function()
+        for _, otherTab in pairs(self.Tabs) do
+            otherTab.Button.BackgroundColor3 = Theme.TabsBG
+            otherTab.Button.Font = Enum.Font.GothamSemibold
+            otherTab.Page.Visible = false
+        end
+        Tab.Button.BackgroundColor3 = Theme.Accent
+        Tab.Button.Font = Enum.Font.GothamBold
+        Tab.Page.Visible = true
+        self.ActiveTab = Tab
+    end)
+
+    table.insert(self.Tabs, Tab)
+
+    if #self.Tabs == 1 then
+        Tab.Button.BackgroundColor3 = Theme.Accent
+        Tab.Button.Font = Enum.Font.GothamBold
+        Tab.Page.Visible = true
+        self.ActiveTab = Tab
+    end
+
+    local TabObject = {}
+    TabObject.Page = Tab.Page
+
+    local function AddToSearch(frame, searchText)
+        table.insert(Tab.Elements, {Frame = frame, SearchText = searchText or ""})
+    end
+
+    function TabObject:CreateSearchBar(placeholder)
+        placeholder = placeholder or "Pesquisar"
+        local SearchFrame = Create("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = Theme.SearchBG, BorderSizePixel = 0, Parent = Tab.Page}, {
+            Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
+            Create("UIStroke", {Color = Color3.fromRGB(45,45,45), Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
+        })
+        Create("TextLabel", {Size = UDim2.new(0, 26, 0, 26), Position = UDim2.new(0, 8, 0.5, -13), BackgroundTransparency = 1, Text = "🔍", TextColor3 = Color3.fromRGB(150,150,150), Font = Enum.Font.Gotham, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center, Parent = SearchFrame})
+        local SearchBox = Create("TextBox", {Size = UDim2.new(1, -45, 1, 0), Position = UDim2.new(0, 38, 0, 0), BackgroundTransparency = 1, Text = "", PlaceholderText = placeholder, PlaceholderColor3 = Color3.fromRGB(120,120,120), TextColor3 = Color3.fromRGB(255,255,255), Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center, ClearTextOnFocus = false, Parent = SearchFrame})
+
+        SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+            local query = string.lower(SearchBox.Text)
+            for _, element in pairs(Tab.Elements) do
+                if element.Frame and element.Frame.Parent then
+                    local searchText = string.lower(element.SearchText or "")
+                    element.Frame.Visible = (query == "" or string.find(searchText, query, 1, true)) and true or false
+                end
+            end
+        end)
+        SearchBox.Focused:Connect(function() Tween(SearchFrame, 0.2, {BackgroundColor3 = Color3.fromRGB(38,38,38)}) end)
+        SearchBox.FocusLost:Connect(function() Tween(SearchFrame, 0.2, {BackgroundColor3 = Theme.SearchBG}) end)
+        return SearchFrame
+    end
+
+    local function CreateToggle(parent, text, defaultState, callback, noNotify)
+        local ToggleFrame = Create("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = Theme.ElementBG, Parent = parent}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+        Create("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Theme.Text, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = ToggleFrame})
+        local ToggleBtn = Create("TextButton", {Size = UDim2.new(0, 36, 0, 18), Position = UDim2.new(1, -50, 0.5, -9), BackgroundColor3 = defaultState and Theme.ToggleOn or Theme.ToggleOff, Text = "", AutoButtonColor = false, Parent = ToggleFrame}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+        local Circle = Create("Frame", {Size = UDim2.new(0, 14, 0, 14), Position = defaultState and UDim2.new(1, -16, 0, 2) or UDim2.new(0, 2, 0, 2), BackgroundColor3 = Theme.Text, Parent = ToggleBtn}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+        local state = defaultState
+        local toggleData = {Btn = ToggleBtn, State = state}
+        table.insert(CreatedElements.Toggles, toggleData)
+
+        local function setState(newState, fireCb)
+            state = newState
+            toggleData.State = newState
+            Tween(ToggleBtn, 0.2, {BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff})
+            Tween(Circle, 0.2, {Position = state and UDim2.new(1, -16, 0, 2) or UDim2.new(0, 2, 0, 2)})
+            if fireCb and callback then callback(state) end
+        end
+        toggleData.SetState = setState
+
+        ToggleBtn.MouseButton1Click:Connect(function()
+            setState(not state, true)
+            if not noNotify then NotifyToggle(text, state) end
+        end)
+        AddToSearch(ToggleFrame, text)
+        return ToggleFrame
+    end
+
+    local function CreateSlider(parent, text, min, max, default, callback, noNotify)
+        local SliderFrame = Create("Frame", {Size = UDim2.new(1, 0, 0, 48), BackgroundColor3 = Theme.ElementBG, Parent = parent}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+        Create("TextLabel", {Size = UDim2.new(1, -60, 0, 20), Position = UDim2.new(0, 12, 0, 4), BackgroundTransparency = 1, Text = text, TextColor3 = Theme.Text, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = SliderFrame})
+        local ValueLabel = Create("TextLabel", {Size = UDim2.new(0, 40, 0, 20), Position = UDim2.new(1, -50, 0, 4), BackgroundTransparency = 1, Text = tostring(default), TextColor3 = Theme.Accent, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right, Parent = SliderFrame})
+        local SliderTrack = Create("Frame", {Size = UDim2.new(1, -24, 0, 4), Position = UDim2.new(0, 12, 0, 32), BackgroundColor3 = Theme.ToggleOff, Parent = SliderFrame}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+        local Fill = Create("Frame", {Size = UDim2.new((default - min) / (max - min), 0, 1, 0), BackgroundColor3 = Theme.SliderFill, Parent = SliderTrack}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+        local Knob = Create("Frame", {Size = UDim2.new(0, 12, 0, 12), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new((default - min) / (max - min), 0, 0.5, 0), BackgroundColor3 = Theme.Text, Parent = SliderTrack}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+
+        local sliderData = {Fill = Fill, ValueLabel = ValueLabel}
+        table.insert(CreatedElements.Sliders, sliderData)
+
+        local draggingSlider = false
+        local val = default
+
+        local function setValue(newVal, fireCb)
+            newVal = math.clamp(math.floor(newVal), min, max)
+            val = newVal
+            local pos = (val - min) / (max - min)
+            ValueLabel.Text = tostring(val)
+            Tween(Fill, 0.1, {Size = UDim2.new(pos, 0, 1, 0)})
+            Tween(Knob, 0.1, {Position = UDim2.new(pos, 0, 0.5, 0)})
+            if fireCb and callback then callback(val) end
+        end
+        sliderData.SetValue = setValue
+
+        local function UpdateSlider(input)
+            local pos = math.clamp((input.Position.X - SliderTrack.AbsolutePosition.X) / SliderTrack.AbsoluteSize.X, 0, 1)
+            val = math.floor((max - min) * pos + min)
+            ValueLabel.Text = tostring(val)
+            Tween(Fill, 0.1, {Size = UDim2.new(pos, 0, 1, 0)})
+            Tween(Knob, 0.1, {Position = UDim2.new(pos, 0, 0.5, 0)})
+            if callback then callback(val) end
+        end
+
+        SliderTrack.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingSlider = true; UpdateSlider(input) end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then UpdateSlider(input) end
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 and draggingSlider then
+                draggingSlider = false
+                if not noNotify then NotifySlider(text, val) end
+            end
+        end)
+        AddToSearch(SliderFrame, text)
+        return SliderFrame
+    end
+
+    local function CreateCheckbox(parent, text, defaultState, callback, noNotify)
+        local CheckFrame = Create("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = Theme.ElementBG, Parent = parent}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+        Create("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Theme.Text, Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = CheckFrame})
+        local Box = Create("TextButton", {Size = UDim2.new(0, 18, 0, 18), Position = UDim2.new(1, -32, 0.5, -9), BackgroundColor3 = defaultState and Theme.Accent or Theme.ToggleOff, Text = defaultState and "✓" or "", TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 13, AutoButtonColor = false, Parent = CheckFrame}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)})})
+        local state = defaultState
+        local checkboxData = {Box = Box, State = state, Locked = false}
+        table.insert(CreatedElements.Checkboxes, checkboxData)
+
+        local function setState(newState, fireCb)
+            state = newState
+            checkboxData.State = newState
+            Box.Text = state and "✓" or ""
+            Tween(Box, 0.2, {BackgroundColor3 = state and Theme.Accent or Theme.ToggleOff})
+            if fireCb and callback then callback(state) end
+        end
+        checkboxData.SetState = setState
+
+        Box.MouseButton1Click:Connect(function()
+            if checkboxData.Locked then return end
+            setState(not state, true)
+            if not noNotify then NotifyCheckbox(text, state) end
+        end)
+        AddToSearch(CheckFrame, text)
+        return CheckFrame, checkboxData
+    end
+
+    local function CreateKeybind(parent, text, defaultKey, callback)
+        local KeyFrame = Create("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = Theme.ElementBG, Parent = parent}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+        Create("TextLabel", {Size = UDim2.new(1, -100, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Theme.Text, Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = KeyFrame})
+        local KeyBtn = Create("TextButton", {Size = UDim2.new(0, 80, 0, 24), Position = UDim2.new(1, -95, 0.5, -12), BackgroundColor3 = Theme.Sidebar, Text = "[" .. defaultKey.Name .. "]", TextColor3 = Theme.Accent, Font = Enum.Font.GothamBold, TextSize = 12, AutoButtonColor = false, Parent = KeyFrame}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)})})
+        table.insert(CreatedElements.Keybinds, {Btn = KeyBtn})
+        local currentKey = defaultKey
+        local listening = false
+        KeyBtn.MouseButton1Click:Connect(function()
+            listening = true; KeyBtn.Text = "[...]"; KeyBtn.TextColor3 = Theme.TextDim
+        end)
+        UserInputService.InputBegan:Connect(function(input, gpe)
+            if listening and not gpe and input.UserInputType == Enum.UserInputType.Keyboard then
+                currentKey = input.KeyCode
+                KeyBtn.Text = "[" .. currentKey.Name .. "]"
+                KeyBtn.TextColor3 = Theme.Accent
+                listening = false
+                _G.__KeybindJustSet = os.clock()
+                if callback then callback(currentKey) end
+            end
+        end)
+        AddToSearch(KeyFrame, text)
+        return KeyFrame
+    end
+
+    local function CreateButton(parent, text, callback)
+        local Btn = Create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = Theme.ElementBG, Text = text, TextColor3 = Theme.Text, Font = Enum.Font.GothamSemibold, TextSize = 13, AutoButtonColor = false, Parent = parent}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+        Btn.MouseEnter:Connect(function() Tween(Btn, 0.2, {BackgroundColor3 = Theme.Sidebar}) end)
+        Btn.MouseLeave:Connect(function() Tween(Btn, 0.2, {BackgroundColor3 = Theme.ElementBG}) end)
+        Btn.MouseButton1Click:Connect(function() if callback then callback() end end)
+        AddToSearch(Btn, text)
+        return Btn
+    end
+
+    local function CreateRedButton(parent, text, callback)
+        local Btn = Create("TextButton", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = Color3.fromRGB(170,45,45), Text = text, TextColor3 = Color3.fromRGB(255,255,255), Font = Enum.Font.GothamBold, TextSize = 13, AutoButtonColor = false, Parent = parent}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+        Btn.MouseEnter:Connect(function() Tween(Btn, 0.2, {BackgroundColor3 = Color3.fromRGB(200,60,60)}) end)
+        Btn.MouseLeave:Connect(function() Tween(Btn, 0.2, {BackgroundColor3 = Color3.fromRGB(170,45,45)}) end)
+        Btn.MouseButton1Click:Connect(function() if callback then callback() end end)
+        AddToSearch(Btn, text)
+        return Btn
+    end
+
+    local function CreateColorPicker(parent, text, defaultColor, callback, noTheme)
+        local currentColor = defaultColor or Theme.Accent
+        local h, s, v = Color3.toHSV(currentColor)
+        local PickerFrame = Create("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = Theme.ElementBG, Parent = parent}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+        Create("TextLabel", {Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Theme.Text, Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = PickerFrame})
+        local PreviewBtn = Create("TextButton", {Size = UDim2.new(0, 40, 0, 22), Position = UDim2.new(1, -52, 0.5, -11), BackgroundColor3 = currentColor, Text = "", AutoButtonColor = false, Parent = PickerFrame}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Color3.fromRGB(60,60,60), Thickness = 1})})
+
+        local Popup = Create("Frame", {Size = UDim2.new(0, 240, 0, 310), BackgroundColor3 = Color3.fromRGB(20,20,20), BorderSizePixel = 0, Visible = false, Active = true, ZIndex = 999, Parent = screenGui}, {
+            Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
+            Create("UIStroke", {Color = Color3.fromRGB(50,50,50), Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
+        })
+        Create("TextLabel", {Size = UDim2.new(1, -20, 0, 20), Position = UDim2.new(0, 12, 0, 8), BackgroundTransparency = 1, Text = text, TextColor3 = Color3.fromRGB(255,255,255), Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Parent = Popup})
+        local ColorBox = Create("Frame", {Size = UDim2.new(1, -24, 0, 130), Position = UDim2.new(0, 12, 0, 32), BackgroundColor3 = Color3.fromHSV(h, 1, 1), BorderSizePixel = 0, Active = true, Parent = Popup}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)})})
+        Create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(255,255,255), BorderSizePixel = 0, Active = true, Parent = ColorBox}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIGradient", {Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1)})})})
+        Create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(0,0,0), BorderSizePixel = 0, Active = true, Parent = ColorBox}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIGradient", {Rotation = 90, Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0)})})})
+        local Crosshair = Create("Frame", {Size = UDim2.new(0, 10, 0, 10), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(s, 0, 1 - v, 0), BackgroundTransparency = 1, ZIndex = 2, Parent = ColorBox}, {Create("UIStroke", {Color = Color3.fromRGB(255,255,255), Thickness = 2}), Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+        local HueSlider = Create("Frame", {Size = UDim2.new(1, -24, 0, 14), Position = UDim2.new(0, 12, 0, 172), BackgroundColor3 = Color3.fromRGB(30,30,30), BorderSizePixel = 0, Active = true, Parent = Popup}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+        for i = 0, 20 do
+            Create("Frame", {Size = UDim2.new(1/21, 1, 1, 0), Position = UDim2.new(i/21, 0, 0, 0), BackgroundColor3 = Color3.fromHSV(i/20, 1, 1), BorderSizePixel = 0, Active = true, Parent = HueSlider})
+        end
+        local HueKnob = Create("Frame", {Size = UDim2.new(0, 8, 0, 18), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(h, 0, 0.5, 0), BackgroundColor3 = Color3.fromRGB(255,255,255), ZIndex = 2, Parent = HueSlider}, {Create("UICorner", {CornerRadius = UDim.new(0, 2)}), Create("UIStroke", {Color = Color3.fromRGB(0,0,0), Thickness = 1})})
+        local RGBDisplay = Create("TextLabel", {Size = UDim2.new(0, 150, 0, 20), Position = UDim2.new(0, 12, 0, 196), BackgroundTransparency = 1, Text = "RGB: 0, 0, 0", TextColor3 = Color3.fromRGB(200,200,200), Font = Enum.Font.Code, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Parent = Popup})
+        local BigPreview = Create("Frame", {Size = UDim2.new(1, -24, 0, 30), Position = UDim2.new(0, 12, 0, 224), BackgroundColor3 = currentColor, BorderSizePixel = 0, Parent = Popup}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)}), Create("UIStroke", {Color = Color3.fromRGB(60,60,60), Thickness = 1})})
+        local ResetBtn = Create("TextButton", {Size = UDim2.new(1, -24, 0, 26), Position = UDim2.new(0, 12, 0, 266), BackgroundColor3 = Color3.fromRGB(50,50,50), Text = "Reset", TextColor3 = Color3.fromRGB(255,255,255), Font = Enum.Font.GothamBold, TextSize = 12, AutoButtonColor = false, Parent = Popup}, {Create("UICorner", {CornerRadius = UDim.new(0, 4)})})
+        ResetBtn.MouseEnter:Connect(function() Tween(ResetBtn, 0.2, {BackgroundColor3 = Color3.fromRGB(70,70,70)}) end)
+        ResetBtn.MouseLeave:Connect(function() Tween(ResetBtn, 0.2, {BackgroundColor3 = Color3.fromRGB(50,50,50)}) end)
+
+        local function updatePreview()
+            local newColor = Color3.fromHSV(h, s, v)
+            currentColor = newColor
+            ColorBox.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+            PreviewBtn.BackgroundColor3 = newColor
+            BigPreview.BackgroundColor3 = newColor
+            Crosshair.Position = UDim2.new(s, 0, 1 - v, 0)
+            HueKnob.Position = UDim2.new(h, 0, 0.5, 0)
+            RGBDisplay.Text = string.format("RGB: %d, %d, %d", math.floor(newColor.R * 255), math.floor(newColor.G * 255), math.floor(newColor.B * 255))
+            if not noTheme then Library:UpdateTheme(newColor) end
+            if callback then callback(newColor) end
+        end
+
+        local draggingBox = false
+        local function updateFromBox(input)
+            local relX = math.clamp((input.Position.X - ColorBox.AbsolutePosition.X) / ColorBox.AbsoluteSize.X, 0, 1)
+            local relY = math.clamp((input.Position.Y - ColorBox.AbsolutePosition.Y) / ColorBox.AbsoluteSize.Y, 0, 1)
+            s = relX; v = 1 - relY
+            updatePreview()
+        end
+        ColorBox.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingBox = true; updateFromBox(input) end end)
+
+        local draggingHue = false
+        local function updateFromHue(input)
+            local relX = math.clamp((input.Position.X - HueSlider.AbsolutePosition.X) / HueSlider.AbsoluteSize.X, 0, 1)
+            h = relX
+            updatePreview()
+        end
+        HueSlider.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingHue = true; updateFromHue(input) end end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement then
+                if draggingBox then updateFromBox(input) end
+                if draggingHue then updateFromHue(input) end
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingBox = false; draggingHue = false end
+        end)
+
+        local outsideConn = nil
+        local function closePopup()
+            Popup.Visible = false
+            if outsideConn then outsideConn:Disconnect(); outsideConn = nil end
+        end
+
+        PreviewBtn.MouseButton1Click:Connect(function()
+            if Popup.Visible then closePopup(); return end
+            local btnPos = PreviewBtn.AbsolutePosition
+            local popupX = btnPos.X - 200
+            local popupY = btnPos.Y + 25
+            local viewport = workspace.CurrentCamera.ViewportSize
+            if popupX < 5 then popupX = 5 end
+            if popupX + 240 > viewport.X - 5 then popupX = viewport.X - 245 end
+            if popupY + 310 > viewport.Y - 5 then popupY = btnPos.Y - 320 end
+            Popup.Position = UDim2.new(0, popupX, 0, popupY)
+            Popup.Visible = true
+            outsideConn = UserInputService.InputBegan:Connect(function(input, gpe)
+                if gpe then return end
+                if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+                local pos = input.Position
+                local pPos = Popup.AbsolutePosition
+                local pSize = Popup.AbsoluteSize
+                local inPopup = pos.X >= pPos.X and pos.X <= pPos.X + pSize.X and pos.Y >= pPos.Y and pos.Y <= pPos.Y + pSize.Y
+                if not inPopup then closePopup() end
+            end)
+        end)
+
+        ResetBtn.MouseButton1Down:Connect(function()
+            local oh, os, ov = Color3.toHSV(ORIGINAL_COLOR)
+            h = oh; s = os; v = ov
+            updatePreview()
+            closePopup()
+        end)
+
+        AddToSearch(PickerFrame, text)
+        return PickerFrame
+    end
+
+    local function CreateGroupbox(parent, title)
+        local Groupbox = Create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = Theme.GroupboxBG, BorderSizePixel = 0, Parent = parent}, {
+            Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
+            Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}),
+            Create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)})
+        })
+        Create("TextLabel", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = title, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Parent = Groupbox})
+        Create("Frame", {Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = Theme.Separator, BorderSizePixel = 0, Parent = Groupbox})
+        local Content = Create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Groupbox}, {Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder})})
+        local GroupboxObject = {}
+        function GroupboxObject:AddToggle(text, default, callback) return CreateToggle(Content, text, default, callback) end
+        function GroupboxObject:AddSlider(text, min, max, default, callback) return CreateSlider(Content, text, min, max, default, callback) end
+        function GroupboxObject:AddCheckbox(text, default, callback) return CreateCheckbox(Content, text, default, callback) end
+        function GroupboxObject:AddKeybind(text, default, callback) return CreateKeybind(Content, text, default, callback) end
+        function GroupboxObject:AddButton(text, callback) return CreateButton(Content, text, callback) end
+        function GroupboxObject:AddRedButton(text, callback) return CreateRedButton(Content, text, callback) end
+        function GroupboxObject:AddColorPicker(text, defaultColor, callback, noTheme) return CreateColorPicker(Content, text, defaultColor, callback, noTheme) end
+        return GroupboxObject
+    end
+
+    function TabObject:CreateSection(text)
+        local Section = Create("Frame", {Size = UDim2.new(1, 0, 0, 25), BackgroundTransparency = 1, Parent = Tab.Page})
+        Create("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Parent = Section})
+        return Section
+    end
+
+    function TabObject:CreateToggle(text, default, callback) return CreateToggle(Tab.Page, text, default, callback) end
+    function TabObject:CreateSlider(text, min, max, default, callback) return CreateSlider(Tab.Page, text, min, max, default, callback) end
+    function TabObject:CreateCheckbox(text, default, callback) return CreateCheckbox(Tab.Page, text, default, callback) end
+    function TabObject:CreateKeybind(text, default, callback) return CreateKeybind(Tab.Page, text, default, callback) end
+    function TabObject:CreateButton(text, callback) return CreateButton(Tab.Page, text, callback) end
+    function TabObject:CreateRedButton(text, callback) return CreateRedButton(Tab.Page, text, callback) end
+    function TabObject:CreateColorPicker(text, defaultColor, callback, noTheme) return CreateColorPicker(Tab.Page, text, defaultColor, callback, noTheme) end
+
+    function TabObject:AddLeftGroupbox(title)
+        if not Tab.TwoColumnContainer then
+            Tab.TwoColumnContainer = Create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Tab.Page})
+            Tab.LeftColumn = Create("Frame", {Size = UDim2.new(0.5, -5, 0, 0), Position = UDim2.new(0, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Tab.TwoColumnContainer}, {Create("UIListLayout", {Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder})})
+            Tab.RightColumn = Create("Frame", {Size = UDim2.new(0.5, -5, 0, 0), Position = UDim2.new(0.5, 5, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Tab.TwoColumnContainer}, {Create("UIListLayout", {Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder})})
+        end
+        return CreateGroupbox(Tab.LeftColumn, title)
+    end
+
+    function TabObject:AddRightGroupbox(title)
+        if not Tab.TwoColumnContainer then
+            Tab.TwoColumnContainer = Create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Tab.Page})
+            Tab.LeftColumn = Create("Frame", {Size = UDim2.new(0.5, -5, 0, 0), Position = UDim2.new(0, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Tab.TwoColumnContainer}, {Create("UIListLayout", {Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder})})
+            Tab.RightColumn = Create("Frame", {Size = UDim2.new(0.5, -5, 0, 0), Position = UDim2.new(0.5, 5, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Tab.TwoColumnContainer}, {Create("UIListLayout", {Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder})})
+        end
+        return CreateGroupbox(Tab.RightColumn, title)
+    end
+
+    function TabObject:CreateLogContainer()
+        local LogContainer = Create("ScrollingFrame", {Size = UDim2.new(1, 0, 1, -40), BackgroundColor3 = Theme.ElementBG, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = Theme.Accent, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ElasticBehavior = Enum.ElasticBehavior.Never, Parent = Tab.Page}, {
+            Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+            Create("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}),
+            Create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), PaddingBottom = UDim.new(0, 10)})
+        })
+        function TabObject:AddLog(message)
+            local color = Theme.Text
+            local prefix = string.sub(message, 1, 3)
+            if prefix == "[+]" then color = Theme.LogAdd
+            elseif prefix == "[-]" then color = Theme.LogRemove
+            elseif prefix == "[=]" then color = Theme.LogFix end
+            local LogLabel = Create("TextLabel", {Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1, Text = message, TextColor3 = color, Font = Enum.Font.Code, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Parent = LogContainer})
+            LogLabel.TextTransparency = 1
+            Tween(LogLabel, 0.3, {TextTransparency = 0})
+            return LogLabel
+        end
+        return LogContainer
+    end
+
+    function TabObject:CreateWelcomeBanner()
+        local Banner = Create("Frame", {Size = UDim2.new(1, 0, 0, 90), BackgroundColor3 = Theme.TabsBG, BorderSizePixel = 0, Parent = Tab.Page}, {
+            Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
+            Create("UIStroke", {Color = Theme.Accent, Thickness = 1, Transparency = 0.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
+        })
+        Create("TextLabel", {Size = UDim2.new(1, -20, 0, 30), Position = UDim2.new(0, 15, 0, 15), BackgroundTransparency = 1, Text = "Bem-vindo, " .. LocalPlayer.DisplayName .. "!", TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Left, Parent = Banner})
+        Create("TextLabel", {Size = UDim2.new(1, -20, 0, 30), Position = UDim2.new(0, 15, 0, 45), BackgroundTransparency = 1, Text = "Use o menu lateral para navegar.", TextColor3 = Theme.TextDim, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Parent = Banner})
+        return Banner
+    end
+
+    function TabObject:CreateInfoCard(title, value)
+        local Card = Create("Frame", {Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = Theme.ElementBG, Parent = Tab.Page}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+        Create("TextLabel", {Size = UDim2.new(0.5, -15, 1, 0), Position = UDim2.new(0, 15, 0, 0), BackgroundTransparency = 1, Text = title, TextColor3 = Theme.TextDim, Font = Enum.Font.Gotham, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = Card})
+        Create("TextLabel", {Size = UDim2.new(0.5, -15, 1, 0), Position = UDim2.new(0.5, 0, 0, 0), BackgroundTransparency = 1, Text = value, TextColor3 = Theme.Accent, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right, Parent = Card})
+        return Card
+    end
+
+    return TabObject
+end
+
+getgenv().xP_UI_Library = Library
+
+-- ==========================================================================
+-- PARTE 2: xP HUB | RIDE A PET — EGG FINDER + AUTO FARM + FLY
+-- ==========================================================================
+
+local workspace = game:GetService("Workspace")
+local runService = game:GetService("RunService")
+local localPlayer = Players.LocalPlayer
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- =================== ESTADO GLOBAL ===================
+_G.EggESPFilters = _G.EggESPFilters or {}
+_G.EggButtons    = _G.EggButtons    or {}
+_G.AutoFarmButtons = _G.AutoFarmButtons or {}
+_G.ESPEnabled = false
+_G.RarityCheckboxes = _G.RarityCheckboxes or {}
+_G.RarityFilters = _G.RarityFilters or {
+    ["Common"]=false, ["Rare"]=false, ["Epic"]=false,
+    ["Legendary"]=false, ["Mythic"]=false, ["Divine"]=false, ["Ethereal"]=false
+}
+_G.__AutoFarmDirty = false
+_G.__CarryingEgg = false
+
+local RarityOrder = {"Ethereal","Divine","Mythic","Legendary","Epic","Rare","Common"}
+
+local RARITY_COLORS = {
+    ["Common"]=Color3.fromRGB(170,170,170), ["Rare"]=Color3.fromRGB(60,160,255),
+    ["Epic"]=Color3.fromRGB(190,60,255),    ["Legendary"]=Color3.fromRGB(255,160,0),
+    ["Mythic"]=Color3.fromRGB(255,60,110),  ["Divine"]=Color3.fromRGB(255,220,0),
+    ["Ethereal"]=Color3.fromRGB(0,255,255), ["Default"]=Color3.fromRGB(0,255,0)
+}
+
+local RARITY_WEIGHT = {
+    ["Ethereal"]  = 1, ["Divine"] = 2, ["Mythic"] = 3,
+    ["Legendary"] = 4, ["Epic"]   = 5, ["Rare"]   = 6,
+    ["Common"]    = 7, ["Default"]= 99,
+}
+
+-- =================== DATABASE ===================
+local EGG_DATABASE = {
+    ["White Egg"]={rarity="Common",luck="1"},
+    ["Brown Egg"]={rarity="Common",luck="5"},
+    ["Cracked Egg"]={rarity="Rare",luck="30"},
+    ["Easter Egg"]={rarity="Rare",luck="50"},
+    ["Stone Egg"]={rarity="Rare",luck="100"},
+    ["Leaf Egg"]={rarity="Rare",luck="200"},
+    ["Mushroom Egg"]={rarity="Epic",luck="500"},
+    ["Flower Egg"]={rarity="Epic",luck="750"},
+    ["Slime Egg"]={rarity="Epic",luck="1,000"},
+    ["Ice Egg"]={rarity="Epic",luck="3,000"},
+    ["Glass Egg"]={rarity="Legendary",luck="10,000"},
+    ["Golden Egg"]={rarity="Legendary",luck="30,000"},
+    ["Crystal Egg"]={rarity="Mythic",luck="150,000"},
+    ["Skull Egg"]={rarity="Mythic",luck="250,000"},
+    ["Dominus Egg"]={rarity="Mythic",luck="700,000"},
+    ["Flaming Egg"]={rarity="Mythic",luck="1,000,000"},
+    ["Sinister Egg"]={rarity="Mythic",luck="3,000,000"},
+    ["Soul Egg"]={rarity="Mythic",luck="7,000,000"},
+    ["Aurora Egg"]={rarity="Divine",luck="300,000,000"},
+    ["Galaxy Egg"]={rarity="Divine",luck="1,500,000,000"},
+    ["Blackhole Egg"]={rarity="Ethereal",luck="1,370,000,000,000,000"},
+    ["Solaris Egg"]={rarity="Ethereal",luck="300,000,000,000"},
+    ["Cherub Egg"]={rarity="Ethereal",luck="1,000,000,000,000"}
+}
+
+local function getEggInfo(name)
+    local lower = string.lower(name)
+    for rawName, info in pairs(EGG_DATABASE) do
+        if string.find(lower, string.lower(rawName), 1, true) then
+            return info.rarity, info.luck
+        end
+    end
+    if string.find(lower, "divine") then return "Divine", "???" end
+    if string.find(lower, "ethereal") or string.find(lower, "etheral") then return "Ethereal", "???" end
+    if string.find(lower, "mythic") then return "Mythic", "90,000+" end
+    if string.find(lower, "legendary") then return "Legendary", "???" end
+    if string.find(lower, "epic") then return "Epic", "???" end
+    if string.find(lower, "rare") then return "Rare", "???" end
+    return "Common", "1"
+end
+
+local function parseLuck(luckStr)
+    if not luckStr then return 0 end
+    if luckStr == "???" or luckStr == "90,000+" then return 0 end
+    local cleaned = tostring(luckStr):gsub(",", ""):gsub("%+", "")
+    return tonumber(cleaned) or 0
+end
+
+local function sortEggsByPriority(list)
+    table.sort(list, function(a, b)
+        local nameA = a.Name or a.name
+        local nameB = b.Name or b.name
+        local rarA, lkA = getEggInfo(nameA)
+        local rarB, lkB = getEggInfo(nameB)
+        local wa = RARITY_WEIGHT[rarA] or 99
+        local wb = RARITY_WEIGHT[rarB] or 99
+        if wa ~= wb then return wa < wb end
+        local na = parseLuck(lkA)
+        local nb = parseLuck(lkB)
+        if na ~= nb then return na > nb end
+        return nameA:lower() < nameB:lower()
+    end)
+end
+
+-- =================== IMAGEM DO OVO ===================
+local function getEggImage(eggName)
+    local playerGui = localPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return "" end
+    local main = playerGui:FindFirstChild("Main")
+    local index = main and main:FindFirstChild("Index")
+    local holders = index and index:FindFirstChild("Holders")
+    local eggsHolder = holders and holders:FindFirstChild("EggsHolder")
+    if not eggsHolder then return "" end
+    local eggFrame = eggsHolder:FindFirstChild(eggName)
+    if not eggFrame then return "" end
+    local imageLabel = eggFrame:FindFirstChild("ImageLabel")
+    if imageLabel and imageLabel:IsA("ImageLabel") then
+        return imageLabel.Image or ""
+    end
+    return ""
+end
+
+-- =================== IGNORA OVOS EM BASE COM DONO REAL ===================
+local function isInClaimedBase(egg)
+    local current = egg
+    while current and current ~= workspace do
+        local dataFolder = current:FindFirstChild("Data")
+        if dataFolder then
+            local ownerValue = dataFolder:FindFirstChild("Owner")
+            if ownerValue then
+                local hasOwner = false
+                if ownerValue:IsA("StringValue") then
+                    hasOwner = ownerValue.Value ~= nil and ownerValue.Value ~= ""
+                elseif ownerValue:IsA("ObjectValue") then
+                    hasOwner = ownerValue.Value ~= nil
+                else
+                    local v = ownerValue.Value
+                    hasOwner = v ~= nil and tostring(v) ~= "" and tostring(v) ~= "0"
+                end
+                if hasOwner then return true end
+            end
+        end
+        current = current.Parent
+    end
+    return false
+end
+
+-- =================== COLETA OVOS SEM DUPLICAR ===================
+local function collectEggs()
+    local eggs, seenSet = {}, {}
+    local function markAndAdd(obj)
+        if seenSet[obj] then return end
+        seenSet[obj] = true
+        for _, d in ipairs(obj:GetDescendants()) do seenSet[d] = true end
+        table.insert(eggs, obj)
+    end
+    local renderedFolder = workspace:FindFirstChild("RenderedEggs")
+    if renderedFolder then
+        for _, c in ipairs(renderedFolder:GetChildren()) do
+            if c:IsA("Model") or c:IsA("BasePart") then markAndAdd(c) end
+        end
+    end
+    for _, item in ipairs(workspace:GetDescendants()) do
+        if not seenSet[item] and (item:IsA("Model") or item:IsA("BasePart")) and string.find(string.lower(item.Name), "egg", 1, true) then
+            local hasEggAncestor = false
+            local p = item.Parent
+            while p and p ~= workspace do
+                if seenSet[p] then hasEggAncestor = true break end
+                p = p.Parent
+            end
+            if not hasEggAncestor then markAndAdd(item) end
+        end
+    end
+    return eggs
+end
+
+-- =================== ESP ===================
+local function applyRarityTextESP(object, rarity, luck)
+    if not _G.ESPEnabled then
+        local old = object:FindFirstChild("RarityTextESP")
+        if old then old:Destroy() end
+        return
+    end
+    if isInClaimedBase(object) then
+        local old = object:FindFirstChild("RarityTextESP")
+        if old then old:Destroy() end
+        return
+    end
+    if _G.RarityFilters[rarity] == false or _G.EggESPFilters[object.Name] == false then
+        local old = object:FindFirstChild("RarityTextESP")
+        if old then old:Destroy() end
+        return
+    end
+    if object:FindFirstChild("RarityTextESP") then return end
+
+    local targetPart = object:IsA("BasePart") and object or object:FindFirstChildWhichIsA("BasePart", true)
+    if not targetPart then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "RarityTextESP"
+    billboard.Size = UDim2.new(0, 280, 0, 90)
+    billboard.AlwaysOnTop = true
+    billboard.MaxDistance = 6000
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = RARITY_COLORS[rarity] or RARITY_COLORS["Default"]
+    label.TextSize = 20
+    label.Font = Enum.Font.SourceSansBold
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    label.Parent = billboard
+
+    billboard.Adornee = targetPart
+    billboard.Parent = object
+
+    task.spawn(function()
+        while billboard and billboard.Parent and label.Parent
+              and object and object.Parent
+              and not _G.__xPHub_Unloaded
+              and _G.ESPEnabled
+              and not isInClaimedBase(object)
+              and _G.RarityFilters[rarity] ~= false
+              and _G.EggESPFilters[object.Name] ~= false do
+            local root = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if root and targetPart.Parent then
+                local d = math.floor((root.Position - targetPart.Position).Magnitude)
+                label.Text = string.format("%s\n[%s] [🍀 %s]\n[%d m]", object.Name, rarity, luck, d)
+            else
+                label.Text = string.format("%s\n[%s] [🍀 %s]", object.Name, rarity, luck)
+            end
+            task.wait(0.2)
+        end
+        if billboard then billboard:Destroy() end
+    end)
+end
+
+local function clearAllESP()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BillboardGui") and obj.Name == "RarityTextESP" then
+            pcall(function() obj:Destroy() end)
+        end
+    end
+end
+
+-- =================== NOCLIP CENTRALIZADO ===================
+local TP_HEIGHT = 3
+local movementActive = false
+local movementHumanoid = nil
+local movementPartsState = nil
+local noclipActive = false
+
+local noclipSources = { fly = false, autoFarm = false, singleFarm = false }
+
+local function enableNoclip()
+    if noclipActive then return end
+    local char = localPlayer.Character
+    if not char then return end
+    movementPartsState = {}
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            movementPartsState[part] = part.CanCollide
+            part.CanCollide = false
+        end
+    end
+    noclipActive = true
+end
+
+local function disableNoclip()
+    if not noclipActive then return end
+    if movementPartsState then
+        for part, oldVal in pairs(movementPartsState) do
+            if part and part.Parent then part.CanCollide = oldVal end
+        end
+        movementPartsState = nil
+    end
+    noclipActive = false
+end
+
+local function refreshNoclip()
+    if noclipSources.fly or noclipSources.autoFarm or noclipSources.singleFarm then
+        enableNoclip()
+    else
+        disableNoclip()
+    end
+end
+
+-- =================== FREEZE / UNFREEZE ===================
+local function freezeCharacter()
+    local char = localPlayer.Character
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Anchored = true
+        end
+    end
+end
+
+-- 👇 FIX: unfreeze agora FORÇA AutoRotate = true
+local function unfreezeCharacter()
+    local char = localPlayer.Character
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Anchored = false
+        end
+    end
+    local hum = char:FindFirstChildWhichIsA("Humanoid")
+    if hum then
+        pcall(function() hum.AutoRotate = true end)
+    end
+end
+
+-- =================== FORÇA LIBERAR E ===================
+local function forceReleaseE()
+    pcall(function()
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+    end)
+end
+
+-- =================== DETECÇÃO: TEM OVO NA MÃO? ===================
+local function hasEggInHand()
+    if _G.__CarryingEgg then return true end
+
+    local char = localPlayer.Character
+    if not char then return false end
+
+    local tool = char:FindFirstChildWhichIsA("Tool")
+    if tool and string.find(string.lower(tool.Name), "egg", 1, true) then
+        return true
+    end
+
+    if char:FindFirstChild("Egg")
+       or char:FindFirstChild("EggInHand")
+       or char:FindFirstChild("CarriedEgg")
+       or char:FindFirstChild("HeldEgg") then
+        return true
+    end
+
+    if char:GetAttribute("HasEgg") or char:GetAttribute("CarryingEgg") or char:GetAttribute("HoldingEgg") then
+        return true
+    end
+
+    return false
+end
+
+-- =================== MOVIMENTO ===================
+local function getRootPart()
+    local char = localPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function getTargetCFrame(target)
+    if not target or not target.Parent then return nil end
+    if target:IsA("Model") then return target:GetPivot() end
+    if target:IsA("BasePart") then return target.CFrame end
+    return nil
+end
+
+-- 👇 FIX: stopMovement agora força AutoRotate SEMPRE
+local function stopMovement()
+    movementActive = false
+
+    -- Força AutoRotate = true em qualquer humanoid
+    local char = localPlayer.Character
+    if char then
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if hum then
+            pcall(function() hum.AutoRotate = true end)
+        end
+    end
+
+    if movementHumanoid and movementHumanoid.Parent then
+        pcall(function() movementHumanoid.AutoRotate = true end)
+    end
+    movementHumanoid = nil
+    refreshNoclip()
+end
+
+local BYPASS_STEP_STUDS = 8
+local BYPASS_MIN_WAIT = 0.015
+
+local function bypassMoveToTarget(target)
+    if movementActive then return false end
+    local char = localPlayer.Character
+    local root = getRootPart()
+    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+    local targetCFrame = getTargetCFrame(target)
+    if not root or not humanoid or not targetCFrame then return false end
+
+    local destination = targetCFrame.Position + Vector3.new(0, TP_HEIGHT, 0)
+    local startPos = root.Position
+    local offset = destination - startPos
+    local totalDistance = offset.Magnitude
+
+    if totalDistance <= 2 then
+        root.CFrame = targetCFrame * CFrame.new(0, TP_HEIGHT, 0)
+        return true
+    end
+
+    movementActive = true
+    movementHumanoid = humanoid
+    local oldAutoRotate = humanoid.AutoRotate
+    local success = false
+
+    enableNoclip()
+    humanoid.AutoRotate = false
+
+    local steps = math.max(2, math.ceil(totalDistance / BYPASS_STEP_STUDS))
+    local direction = offset / totalDistance
+    local stepVector = offset / steps
+
+    local startTime = os.clock()
+    local maxTime = math.max(5, totalDistance / 100 + 4)
+
+    local ok, err = pcall(function()
+        for i = 1, steps do
+            if not movementActive then break end
+            if not target or not target.Parent then break end
+            if getRootPart() ~= root then break end
+            if os.clock() - startTime > maxTime then break end
+
+            if i % 5 == 0 then
+                enableNoclip()
+            end
+
+            local newPos = startPos + stepVector * i
+            root.CFrame = CFrame.new(newPos, newPos + direction)
+            runService.Heartbeat:Wait()
+            task.wait(BYPASS_MIN_WAIT)
+        end
+
+        if target and target.Parent and getRootPart() == root then
+            root.CFrame = targetCFrame * CFrame.new(0, TP_HEIGHT, 0)
+            success = true
+        end
+    end)
+
+    movementActive = false
+    movementHumanoid = nil
+    if humanoid and humanoid.Parent then
+        pcall(function() humanoid.AutoRotate = oldAutoRotate end)
+    end
+    refreshNoclip()
+
+    if not ok then
+        warn("[xP Hub] bypassMoveToTarget erro:", err)
+    end
+    return success
+end
+
+local moveToTarget = bypassMoveToTarget
+
+-- 👇 FIX: bypassWalkToHome restaura AutoRotate ao chegar
+local function bypassWalkToHome()
+    local plotsFolder = workspace:FindFirstChild("Plots")
+    if not plotsFolder then return false end
+    for _, plot in ipairs(plotsFolder:GetChildren()) do
+        local dataFolder = plot:FindFirstChild("Data")
+        if dataFolder then
+            local ownerValue = dataFolder:FindFirstChild("Owner")
+            if ownerValue then
+                local isOwner = false
+                if ownerValue:IsA("StringValue") then
+                    isOwner = ownerValue.Value == localPlayer.Name
+                elseif ownerValue:IsA("ObjectValue") then
+                    isOwner = ownerValue.Value == localPlayer
+                else
+                    isOwner = tostring(ownerValue.Value) == localPlayer.Name
+                end
+                if isOwner then
+                    local ok = bypassMoveToTarget(plot)
+                    -- Garante que voltou a rotacionar
+                    local char = localPlayer.Character
+                    if char then
+                        local hum = char:FindFirstChildWhichIsA("Humanoid")
+                        if hum then
+                            pcall(function() hum.AutoRotate = true end)
+                        end
+                    end
+                    return ok
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function teleportHomeInstant()
+    local plotsFolder = workspace:FindFirstChild("Plots")
+    if not plotsFolder then return false end
+    for _, plot in ipairs(plotsFolder:GetChildren()) do
+        local dataFolder = plot:FindFirstChild("Data")
+        if dataFolder then
+            local ownerValue = dataFolder:FindFirstChild("Owner")
+            if ownerValue then
+                local isOwner = false
+                if ownerValue:IsA("StringValue") then
+                    isOwner = ownerValue.Value == localPlayer.Name
+                elseif ownerValue:IsA("ObjectValue") then
+                    isOwner = ownerValue.Value == localPlayer
+                else
+                    isOwner = tostring(ownerValue.Value) == localPlayer.Name
+                end
+                if isOwner then
+                    local root = getRootPart()
+                    local plotCFrame = getTargetCFrame(plot)
+                    if root and plotCFrame then
+                        root.CFrame = plotCFrame * CFrame.new(0, TP_HEIGHT, 0)
+                        local char = localPlayer.Character
+                        if char then
+                            local hum = char:FindFirstChildWhichIsA("Humanoid")
+                            if hum then
+                                pcall(function() hum.AutoRotate = true end)
+                            end
+                        end
+                        return true
+                    end
+                    return false
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function holdEKey(duration)
+    pcall(function()
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    end)
+    task.wait(duration)
+    pcall(function()
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+    end)
+end
+
+-- =================== FARM ÚNICO ===================
+local singleFarmRunning = false
+
+local function farmSingleEgg(eggName, button)
+    if singleFarmRunning then
+        if autoFarmStatusLabel then
+            autoFarmStatusLabel.Text = "● Aguarde o farm atual terminar..."
+            autoFarmStatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        end
+        return
+    end
+
+    singleFarmRunning = true
+    noclipSources.singleFarm = true
+    refreshNoclip()
+
+    if button then
+        button.Text = "..."
+        button.BackgroundColor3 = Color3.fromRGB(200, 130, 30)
+    end
+
+    if autoFarmStatusLabel then
+        autoFarmStatusLabel.Text = "● Indo buscar: " .. eggName
+        autoFarmStatusLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+    end
+
+    task.spawn(function()
+        if hasEggInHand() then
+            if autoFarmStatusLabel then
+                autoFarmStatusLabel.Text = "● Voltando pra base com ovo na mão..."
+                autoFarmStatusLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+            end
+            enableNoclip()
+            bypassWalkToHome()
+            _G.__CarryingEgg = false
+            task.wait(0.3)
+            if button then
+                button.Text = "Auto Farm"
+                button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            end
+            singleFarmRunning = false
+            noclipSources.singleFarm = false
+            refreshNoclip()
+            return
+        end
+
+        local target
+        local list = collectEggs()
+        for _, egg in ipairs(list) do
+            if egg and egg.Parent and egg.Name == eggName and not isInClaimedBase(egg) then
+                target = egg
+                break
+            end
+        end
+
+        if not target then
+            if autoFarmStatusLabel then
+                autoFarmStatusLabel.Text = "● Ovo não encontrado: " .. eggName
+                autoFarmStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            end
+            if button then
+                button.Text = "Auto Farm"
+                button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            end
+            singleFarmRunning = false
+            noclipSources.singleFarm = false
+            refreshNoclip()
+            return
+        end
+
+        local ok = bypassMoveToTarget(target)
+        if ok then
+            task.wait(0.1)
+            freezeCharacter()
+            task.wait(0.15)
+
+            if autoFarmStatusLabel then
+                autoFarmStatusLabel.Text = "● Pegando: " .. eggName
+                autoFarmStatusLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+            end
+            if target and target.Parent then
+                holdEKey(2)
+            end
+            task.wait(0.2)
+
+            _G.__CarryingEgg = true
+
+            unfreezeCharacter()
+            forceReleaseE()
+            task.wait(0.1)
+
+            if autoFarmStatusLabel then
+                autoFarmStatusLabel.Text = "● Voltando pra base..."
+                autoFarmStatusLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+            end
+            enableNoclip()
+            bypassWalkToHome()
+            _G.__CarryingEgg = false
+            task.wait(0.3)
+
+            if autoFarmStatusLabel then
+                autoFarmStatusLabel.Text = "● Peguei: " .. eggName
+                autoFarmStatusLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+            end
+
+            if button then
+                button.Text = "✔ Feito"
+                button.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+                task.wait(1.5)
+                if button and button.Parent then
+                    button.Text = "Auto Farm"
+                    button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+                end
+            end
+        else
+            if autoFarmStatusLabel then
+                autoFarmStatusLabel.Text = "● Não consegui chegar no ovo"
+                autoFarmStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            end
+            if button then
+                button.Text = "Auto Farm"
+                button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            end
+        end
+
+        singleFarmRunning = false
+        noclipSources.singleFarm = false
+        refreshNoclip()
+    end)
+end
+
+-- =================== FLY ===================
+local FLY_KEYBIND = Enum.KeyCode.F
+local FLY_SPEED  = 50
+local flying = false
+local bodyVelocity, bodyGyro, currentHumanoid
+
+local function getFlyMoveVector()
+    local vec = Vector3.new(0, 0, 0)
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then vec = vec + Vector3.new(0, 0, -1) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then vec = vec + Vector3.new(0, 0, 1) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then vec = vec + Vector3.new(-1, 0, 0) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then vec = vec + Vector3.new(1, 0, 0) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vec = vec + Vector3.new(0, 1, 0) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then vec = vec + Vector3.new(0, -1, 0) end
+    return vec
+end
+
+local function startFly()
+    if flying then return end
+    local char = localPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum  = char:FindFirstChildWhichIsA("Humanoid")
+    if not root or not hum then return end
+
+    flying = true
+    currentHumanoid = hum
+    hum.PlatformStand = true
+
+    noclipSources.fly = true
+    refreshNoclip()
+
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.P = 9e4
+    bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bodyGyro.CFrame = root.CFrame
+    bodyGyro.Parent = root
+
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bodyVelocity.Parent = root
+
+    hum.Died:Connect(function() flying = false end)
+
+    task.spawn(function()
+        while flying and root and root.Parent and hum and hum.Parent and not _G.__xPHub_Unloaded do
+            local cam = workspace.CurrentCamera
+            if cam and bodyVelocity and bodyGyro then
+                local moveVec = getFlyMoveVector()
+                local velocity = Vector3.new(0, 0, 0)
+                if moveVec.Magnitude > 0 then
+                    velocity = cam.CFrame:VectorToWorldSpace(moveVec.Unit) * FLY_SPEED
+                end
+                bodyVelocity.Velocity = velocity
+                bodyGyro.CFrame = cam.CFrame
+            end
+            runService.RenderStepped:Wait()
+        end
+        if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+        if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+        if currentHumanoid and currentHumanoid.Parent then
+            pcall(function() currentHumanoid.PlatformStand = false end)
+            pcall(function() currentHumanoid.AutoRotate = true end)
+        end
+    end)
+end
+
+local function stopFly()
+    if not flying then return end
+    flying = false
+    noclipSources.fly = false
+    refreshNoclip()
+
+    if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+    if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+    if currentHumanoid and currentHumanoid.Parent then
+        pcall(function() currentHumanoid.PlatformStand = false end)
+        pcall(function() currentHumanoid.AutoRotate = true end)
+    end
+end
+
+-- =================== SYNC DOS TOGGLES/SLIDERS DE FLY ===================
+local flyToggleIndices = {}
+local flySliderIndices = {}
+
+local function registerFlyToggle()
+    table.insert(flyToggleIndices, #CreatedElements.Toggles)
+end
+
+local function registerFlySlider()
+    table.insert(flySliderIndices, #CreatedElements.Sliders)
+end
+
+local function setAllFlyToggles(state)
+    for _, idx in ipairs(flyToggleIndices) do
+        local t = CreatedElements.Toggles[idx]
+        if t and t.SetState then t.SetState(state, false) end
+    end
+end
+
+local function setAllFlySliders(value)
+    for _, idx in ipairs(flySliderIndices) do
+        local s = CreatedElements.Sliders[idx]
+        if s and s.SetValue then s.SetValue(value, false) end
+    end
+end
+
+local function createFlyGroupbox(tab)
+    local flyGroup = tab:AddRightGroupbox("Fly")
+    flyGroup:AddToggle("Ativar Fly", false, function(state)
+        if state then startFly() else stopFly() end
+        setAllFlyToggles(state)
+    end)
+    registerFlyToggle()
+    flyGroup:AddKeybind("Tecla do Fly", Enum.KeyCode.F, function(key)
+        FLY_KEYBIND = key
+    end)
+    flyGroup:AddSlider("Velocidade do Fly", 10, 500, 50, function(val)
+        FLY_SPEED = val
+        setAllFlySliders(val)
+    end)
+    registerFlySlider()
+end
+
+-- =================== WINDOW ===================
+local xP_UI = Library:CreateWindow("xP Hub", "Ride A Pet", "96698707545893")
+
+-- =================== ABA HOME ===================
+local HomeTab = xP_UI:CreateTab("Home", "🏠")
+HomeTab:CreateWelcomeBanner()
+HomeTab:CreateSection("Informações do Jogo")
+HomeTab:CreateInfoCard("Jogo", "Ride A Pet")
+HomeTab:CreateInfoCard("Jogador", localPlayer.DisplayName)
+HomeTab:CreateInfoCard("Username", "@" .. localPlayer.Name)
+HomeTab:CreateInfoCard("User ID", tostring(localPlayer.UserId))
+
+HomeTab:CreateSection("Atalhos Rápidos")
+HomeTab:CreateButton("🥚  Abrir ESP Eggs", function() xP_UI:SelectTab("ESP Eggs") end)
+HomeTab:CreateButton("🌾  Abrir Auto Farm", function() xP_UI:SelectTab("Auto Farm") end)
+HomeTab:CreateButton("⚙️  Abrir Config", function() xP_UI:SelectTab("Config") end)
+
+-- =================== ABA ESP EGGS ===================
+local EggTab = xP_UI:CreateTab("ESP Eggs", "🥚")
+
+EggTab:CreateSection("Filtros de Raridade")
+
+local RarGroup = EggTab:AddLeftGroupbox("Raridades Ativas")
+
+RarGroup:AddToggle("Enable ESP Eggs", false, function(state)
+    _G.ESPEnabled = state
+    if state then
+        for _, rarity in ipairs(RarityOrder) do
+            local cb = _G.RarityCheckboxes[rarity]
+            if cb then cb.Locked = false end
+        end
+    else
+        for _, rarity in ipairs(RarityOrder) do
+            local cb = _G.RarityCheckboxes[rarity]
+            if cb then
+                cb.SetState(false, false)
+                cb.Locked = true
+                _G.RarityFilters[rarity] = false
+            end
+        end
+        pcall(clearAllESP)
+        for name in pairs(_G.EggESPFilters) do
+            _G.EggESPFilters[name] = false
+        end
+    end
+end)
+
+for _, rarity in ipairs(RarityOrder) do
+    local rar = rarity
+    local _, cbData = RarGroup:AddCheckbox(rar, false, function(state)
+        if _G.ESPEnabled then
+            _G.RarityFilters[rar] = state
+        end
+    end)
+    cbData.Locked = true
+    _G.RarityCheckboxes[rar] = cbData
+end
+
+createFlyGroupbox(EggTab)
+
+EggTab:CreateSection("Ovos Detectados no Mapa")
+
+local EggScroll = Instance.new("ScrollingFrame")
+EggScroll.Size = UDim2.new(1, 0, 0, 380)
+EggScroll.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+EggScroll.BorderSizePixel = 0
+EggScroll.ScrollBarThickness = 4
+EggScroll.ScrollBarImageColor3 = Color3.fromRGB(8, 65, 135)
+EggScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+EggScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+EggScroll.Parent = EggTab.Page
+
+local eggPad = Instance.new("UIPadding")
+eggPad.PaddingTop = UDim.new(0, 8)
+eggPad.PaddingBottom = UDim.new(0, 8)
+eggPad.PaddingLeft = UDim.new(0, 8)
+eggPad.PaddingRight = UDim.new(0, 8)
+eggPad.Parent = EggScroll
+
+local eggLayout = Instance.new("UIListLayout")
+eggLayout.Padding = UDim.new(0, 5)
+eggLayout.SortOrder = Enum.SortOrder.LayoutOrder
+eggLayout.Parent = EggScroll
+
+-- =================== SCAN / MENU OVOS ===================
+local function updateEggMenu()
+    if _G.__xPHub_Unloaded then return end
+    local found = collectEggs()
+    local unique = {}
+    local root = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    for _, egg in ipairs(found) do
+        local rarity, luck = getEggInfo(egg.Name)
+        applyRarityTextESP(egg, rarity, luck)
+
+        if not isInClaimedBase(egg) then
+            local part = egg:IsA("BasePart") and egg or egg:FindFirstChildWhichIsA("BasePart", true)
+            local dist = 0
+            if root and part then
+                dist = math.floor((root.Position - part.Position).Magnitude)
+            end
+
+            if not unique[egg.Name] then
+                if _G.EggESPFilters[egg.Name] == nil then _G.EggESPFilters[egg.Name] = true end
+                unique[egg.Name] = {dist=dist, rar=rarity, lk=luck}
+            else
+                if dist > 0 and dist < unique[egg.Name].dist then
+                    unique[egg.Name].dist = dist
+                end
+            end
+        end
+    end
+
+    local sorted = {}
+    for eggName, data in pairs(unique) do
+        table.insert(sorted, {name=eggName, data=data})
+    end
+    sortEggsByPriority(sorted)
+
+    for _, entry in ipairs(sorted) do
+        local eggName = entry.name
+        local data    = entry.data
+
+        local btn = _G.EggButtons[eggName]
+        if not btn or not btn.Parent then
+            btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, -10, 0, 44)
+            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            btn.Font = Enum.Font.GothamSemibold
+            btn.TextSize = 13
+            btn.Text = ""
+            btn.TextXAlignment = Enum.TextXAlignment.Left
+            btn.AutoButtonColor = false
+            btn.Parent = EggScroll
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+            _G.EggButtons[eggName] = btn
+
+            local icon = Instance.new("ImageLabel")
+            icon.Name = "EggIcon"
+            icon.Size = UDim2.new(0, 36, 0, 36)
+            icon.Position = UDim2.new(0, 4, 0.5, -18)
+            icon.BackgroundTransparency = 1
+            icon.Image = getEggImage(eggName)
+            icon.ScaleType = Enum.ScaleType.Fit
+            icon.Parent = btn
+
+            local text = Instance.new("TextLabel")
+            text.Name = "EggText"
+            text.Size = UDim2.new(1, -48, 1, 0)
+            text.Position = UDim2.new(0, 46, 0, 0)
+            text.BackgroundTransparency = 1
+            text.Text = ""
+            text.TextXAlignment = Enum.TextXAlignment.Left
+            text.Font = Enum.Font.GothamSemibold
+            text.TextSize = 12
+            text.Parent = btn
+
+            btn.MouseButton1Click:Connect(function()
+                if not _G.ESPEnabled then return end
+                local rar = getEggInfo(eggName)
+                if _G.RarityFilters[rar] ~= false then
+                    _G.EggESPFilters[eggName] = not _G.EggESPFilters[eggName]
+                    pcall(updateEggMenu)
+                end
+            end)
+        end
+
+        local isOn    = _G.EggESPFilters[eggName]
+        local isRarOn = _G.RarityFilters[data.rar]
+
+        local icon  = btn:FindFirstChild("EggIcon")
+        local text  = btn:FindFirstChild("EggText")
+
+        if icon then
+            local img = getEggImage(eggName)
+            if img ~= "" and icon.Image ~= img then
+                icon.Image = img
+            end
+        end
+
+        local distStr = string.format("[%d m]", data.dist)
+
+        if not _G.ESPEnabled then
+            btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+            if text then
+                text.Text = string.format("💤 %s (ESP OFF)", eggName)
+                text.TextColor3 = Color3.fromRGB(90, 90, 90)
+            end
+        elseif not isRarOn then
+            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            if text then
+                text.Text = string.format("💤 %s (RARIDADE OFF)", eggName)
+                text.TextColor3 = Color3.fromRGB(90, 90, 90)
+            end
+        elseif isOn then
+            btn.BackgroundColor3 = Color3.fromRGB(35, 45, 35)
+            if text then
+                text.Text = string.format("%s\n[%s] 🍀 %s  %s", eggName, data.rar, data.lk, distStr)
+                text.TextColor3 = RARITY_COLORS[data.rar] or RARITY_COLORS["Default"]
+            end
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(45, 30, 30)
+            if text then
+                text.Text = string.format("❌ %s\n[%s]  %s", eggName, data.rar, distStr)
+                text.TextColor3 = Color3.fromRGB(150, 150, 150)
+            end
+        end
+    end
+
+    local activeNames = {}
+    for _, entry in ipairs(sorted) do
+        activeNames[entry.name] = true
+    end
+    for name, btn in pairs(_G.EggButtons) do
+        if not activeNames[name] and btn.Parent then
+            btn:Destroy()
+            _G.EggButtons[name] = nil
+        end
+    end
+end
+
+-- =================== ABA AUTO FARM ===================
+local AutoFarmTab = xP_UI:CreateTab("Auto Farm", "🌾")
+
+AutoFarmTab:CreateSection("Seleção de Raridade e Farm")
+
+local selectedRarities = {}
+for _, r in ipairs(RarityOrder) do
+    selectedRarities[r] = false
+end
+
+local RaritySelectGroup = AutoFarmTab:AddLeftGroupbox("Seleciona Raridade")
+for _, rarity in ipairs(RarityOrder) do
+    local rar = rarity
+    RaritySelectGroup:AddCheckbox(rar, false, function(state)
+        selectedRarities[rar] = state
+    end)
+end
+
+local FarmGroup = AutoFarmTab:AddRightGroupbox("Auto Farm Select")
+
+local autoFarmActive = false
+local autoFarmThread = nil
+local autoFarmProcessed = {}
+local autoFarmStatusLabel
+
+-- =================== LISTA DE OVOS DO AUTO FARM ===================
+AutoFarmTab:CreateSection("Selecionar Ovos Específicos")
+
+local AFScroll = Instance.new("ScrollingFrame")
+AFScroll.Size = UDim2.new(1, 0, 0, 320)
+AFScroll.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+AFScroll.BorderSizePixel = 0
+AFScroll.ScrollBarThickness = 4
+AFScroll.ScrollBarImageColor3 = Color3.fromRGB(8, 65, 135)
+AFScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+AFScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+AFScroll.Parent = AutoFarmTab.Page
+
+local afPad = Instance.new("UIPadding")
+afPad.PaddingTop = UDim.new(0, 8)
+afPad.PaddingBottom = UDim.new(0, 8)
+afPad.PaddingLeft = UDim.new(0, 8)
+afPad.PaddingRight = UDim.new(0, 8)
+afPad.Parent = AFScroll
+
+local afLayout = Instance.new("UIListLayout")
+afLayout.Padding = UDim.new(0, 5)
+afLayout.SortOrder = Enum.SortOrder.LayoutOrder
+afLayout.Parent = AFScroll
+
+local function updateAutoFarmEggList(foundUnique)
+    if _G.__xPHub_Unloaded then return end
+
+    local unique = foundUnique
+    if not unique then
+        unique = {}
+        local list = collectEggs()
+        for _, egg in ipairs(list) do
+            if not isInClaimedBase(egg) then
+                local rar, lk = getEggInfo(egg.Name)
+                if not unique[egg.Name] then
+                    unique[egg.Name] = {rar=rar, lk=lk}
+                end
+            end
+        end
+    end
+
+    local sorted = {}
+    for eggName, data in pairs(unique) do
+        table.insert(sorted, {name=eggName, data=data})
+    end
+    sortEggsByPriority(sorted)
+
+    for _, entry in ipairs(sorted) do
+        local eggName = entry.name
+        local data    = entry.data
+
+        local row = _G.AutoFarmButtons[eggName]
+        if not row or not row.Parent then
+            row = Instance.new("Frame")
+            row.Size = UDim2.new(1, -10, 0, 44)
+            row.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            row.Parent = AFScroll
+            Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+            _G.AutoFarmButtons[eggName] = row
+
+            local icon = Instance.new("ImageLabel")
+            icon.Name = "EggIcon"
+            icon.Size = UDim2.new(0, 34, 0, 34)
+            icon.Position = UDim2.new(0, 5, 0.5, -17)
+            icon.BackgroundTransparency = 1
+            icon.Image = getEggImage(eggName)
+            icon.ScaleType = Enum.ScaleType.Fit
+            icon.Parent = row
+
+            local text = Instance.new("TextLabel")
+            text.Name = "EggText"
+            text.Size = UDim2.new(1, -130, 1, 0)
+            text.Position = UDim2.new(0, 45, 0, 0)
+            text.BackgroundTransparency = 1
+            text.Text = ""
+            text.TextXAlignment = Enum.TextXAlignment.Left
+            text.Font = Enum.Font.GothamSemibold
+            text.TextSize = 12
+            text.Parent = row
+
+            local afBtn = Instance.new("TextButton")
+            afBtn.Name = "AutoFarmBtn"
+            afBtn.Size = UDim2.new(0, 80, 0, 30)
+            afBtn.Position = UDim2.new(1, -86, 0.5, -15)
+            afBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            afBtn.Text = "Auto Farm"
+            afBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+            afBtn.Font = Enum.Font.GothamBold
+            afBtn.TextSize = 11
+            afBtn.AutoButtonColor = false
+            afBtn.Parent = row
+            Instance.new("UICorner", afBtn).CornerRadius = UDim.new(0, 5)
+
+            afBtn.MouseButton1Click:Connect(function()
+                farmSingleEgg(eggName, afBtn)
+            end)
+        end
+
+        local icon = row:FindFirstChild("EggIcon")
+        local text = row:FindFirstChild("EggText")
+
+        if icon then
+            local img = getEggImage(eggName)
+            if img ~= "" and icon.Image ~= img then
+                icon.Image = img
+            end
+        end
+
+        if text then
+            text.Text = string.format("%s\n[%s] 🍀 %s", eggName, data.rar, data.lk)
+            text.TextColor3 = RARITY_COLORS[data.rar] or RARITY_COLORS["Default"]
+        end
+    end
+
+    local activeNames = {}
+    for _, entry in ipairs(sorted) do
+        activeNames[entry.name] = true
+    end
+    for name, row in pairs(_G.AutoFarmButtons) do
+        if not activeNames[name] and row.Parent then
+            row:Destroy()
+            _G.AutoFarmButtons[name] = nil
+        end
+    end
+end
+
+-- =================== SISTEMA AUTO FARM ===================
+local function getAutoFarmEggs()
+    local list = collectEggs()
+    local filtered = {}
+    for _, egg in ipairs(list) do
+        local rarity = getEggInfo(egg.Name)
+        if selectedRarities[rarity]
+           and not autoFarmProcessed[egg]
+           and not isInClaimedBase(egg) then
+            table.insert(filtered, egg)
+        end
+    end
+    sortEggsByPriority(filtered)
+    return filtered
+end
+
+-- 👇 FIX: stopAutoFarm força AutoRotate = true SEMPRE
+local function stopAutoFarm()
+    autoFarmActive = false
+
+    if autoFarmThread then
+        task.cancel(autoFarmThread)
+        autoFarmThread = nil
+    end
+
+    pcall(stopMovement)
+    movementActive = false
+    movementHumanoid = nil
+
+    pcall(unfreezeCharacter)
+    pcall(forceReleaseE)
+
+    -- Força AutoRotate no personagem atual
+    local char = localPlayer.Character
+    if char then
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if hum then
+            pcall(function() hum.AutoRotate = true end)
+        end
+    end
+
+    noclipSources.autoFarm = false
+    refreshNoclip()
+end
+
+local renderedEggsListener = nil
+local function attachRenderedEggsListener()
+    if renderedEggsListener then renderedEggsListener:Disconnect() end
+    local renderedFolder = workspace:FindFirstChild("RenderedEggs")
+    if not renderedFolder then
+        task.spawn(function()
+            renderedFolder = workspace:WaitForChild("RenderedEggs", 30)
+            if renderedFolder and not _G.__xPHub_Unloaded then
+                renderedEggsListener = renderedFolder.ChildAdded:Connect(function()
+                    if autoFarmActive then
+                        _G.__AutoFarmDirty = true
+                    end
+                end)
+            end
+        end)
+    else
+        renderedEggsListener = renderedFolder.ChildAdded:Connect(function()
+            if autoFarmActive then
+                _G.__AutoFarmDirty = true
+            end
+        end)
+    end
+end
+
+local function startAutoFarm()
+    stopAutoFarm()
+    task.wait(0.2)
+
+    movementActive = false
+    movementHumanoid = nil
+    pcall(unfreezeCharacter)
+    pcall(forceReleaseE)
+
+    autoFarmActive = true
+    noclipSources.autoFarm = true
+    refreshNoclip()
+
+    attachRenderedEggsListener()
+
+    autoFarmThread = task.spawn(function()
+        if hasEggInHand() then
+            if autoFarmStatusLabel then
+                autoFarmStatusLabel.Text = "● Voltando pra base (ovo na mão)..."
+                autoFarmStatusLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+            end
+            enableNoclip()
+            bypassWalkToHome()
+            _G.__CarryingEgg = false
+            task.wait(0.3)
+        end
+
+        while autoFarmActive and not _G.__xPHub_Unloaded do
+            _G.__AutoFarmDirty = false
+
+            if hasEggInHand() then
+                if autoFarmStatusLabel then
+                    autoFarmStatusLabel.Text = "● Voltando pra base (ovo na mão)..."
+                    autoFarmStatusLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+                end
+                enableNoclip()
+                bypassWalkToHome()
+                _G.__CarryingEgg = false
+                task.wait(0.3)
+            end
+
+            if not noclipActive then enableNoclip() end
+            if getRootPart() and getRootPart().Anchored then
+                unfreezeCharacter()
+            end
+
+            -- 👇 FIX: Garante AutoRotate true quando não está se movendo
+            local humCheck = localPlayer.Character and localPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+            if humCheck and humCheck.AutoRotate == false and not movementActive then
+                pcall(function() humCheck.AutoRotate = true end)
+            end
+
+            local eggs = getAutoFarmEggs()
+            if #eggs == 0 then
+                if autoFarmStatusLabel then
+                    autoFarmStatusLabel.Text = "● Aguardando novos ovos spawnarem..."
+                    autoFarmStatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+                end
+                local waited = 0
+                while autoFarmActive and not _G.__AutoFarmDirty and waited < 1 do
+                    task.wait(0.1)
+                    waited = waited + 0.1
+                end
+            else
+                local didWork = false
+                for _, egg in ipairs(eggs) do
+                    if not autoFarmActive then break end
+                    if egg and egg.Parent and not autoFarmProcessed[egg] then
+                        didWork = true
+                        local rarityEgg, luckEgg = getEggInfo(egg.Name)
+                        if autoFarmStatusLabel then
+                            autoFarmStatusLabel.Text = string.format("● Farmando: %s [%s] 🍀 %s", egg.Name, rarityEgg, luckEgg)
+                            autoFarmStatusLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+                        end
+
+                        if not autoFarmActive then break end
+                        enableNoclip()
+
+                        local root = getRootPart()
+                        local eggCFrame = getTargetCFrame(egg)
+                        local moved = false
+                        if root and eggCFrame then
+                            local dist = (root.Position - eggCFrame.Position).Magnitude
+                            if dist <= 10 then
+                                root.CFrame = eggCFrame * CFrame.new(0, TP_HEIGHT, 0)
+                                moved = true
+                            end
+                        end
+
+                        if not moved then
+                            moved = bypassMoveToTarget(egg)
+                        end
+
+                        if moved and autoFarmActive then
+                            task.wait(0.1)
+                            freezeCharacter()
+                            task.wait(0.15)
+
+                            if autoFarmActive and egg and egg.Parent then
+                                holdEKey(2)
+                            end
+                            task.wait(0.2)
+
+                            _G.__CarryingEgg = true
+
+                            unfreezeCharacter()
+                            forceReleaseE()
+                            task.wait(0.1)
+                        end
+
+                        pcall(unfreezeCharacter)
+                        pcall(forceReleaseE)
+                        task.wait(0.05)
+
+                        if autoFarmActive then
+                            enableNoclip()
+                            bypassWalkToHome()
+                            _G.__CarryingEgg = false
+                        end
+                        autoFarmProcessed[egg] = true
+                        task.wait(0.15)
+                    end
+                end
+                if not didWork then
+                    task.wait(0.3)
+                end
+            end
+        end
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+    end)
+end
+
+FarmGroup:AddToggle("Ativar Auto Farm", false, function(state)
+    if state then startAutoFarm() else stopAutoFarm() end
+end)
+
+FarmGroup:AddButton("🏠  TP Home (Voltar à Base)", function()
+    local ok = teleportHomeInstant()
+    if autoFarmStatusLabel then
+        if ok then
+            autoFarmStatusLabel.Text = "● Voltou para a base"
+            autoFarmStatusLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+        else
+            autoFarmStatusLabel.Text = "● Não foi possível encontrar sua base"
+            autoFarmStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
+    end
+end)
+
+createFlyGroupbox(AutoFarmTab)
+
+local statusFrame = Instance.new("Frame")
+statusFrame.Size = UDim2.new(1, 0, 0, 40)
+statusFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+statusFrame.BorderSizePixel = 0
+statusFrame.Parent = AutoFarmTab.Page
+Instance.new("UICorner", statusFrame).CornerRadius = UDim.new(0, 6)
+
+autoFarmStatusLabel = Instance.new("TextLabel")
+autoFarmStatusLabel.Size = UDim2.new(1, -20, 1, 0)
+autoFarmStatusLabel.Position = UDim2.new(0, 10, 0, 0)
+autoFarmStatusLabel.BackgroundTransparency = 1
+autoFarmStatusLabel.Text = "● Aguardando..."
+autoFarmStatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+autoFarmStatusLabel.TextSize = 13
+autoFarmStatusLabel.Font = Enum.Font.GothamSemibold
+autoFarmStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+autoFarmStatusLabel.Parent = statusFrame
+
+-- =================== LOOP DE SCAN ===================
+local eggLoopThread = task.spawn(function()
+    while not _G.__xPHub_Unloaded do
+        pcall(function() updateEggMenu() end)
+        pcall(function()
+            local unique = {}
+            local list = collectEggs()
+            for _, egg in ipairs(list) do
+                if not isInClaimedBase(egg) then
+                    local rar, lk = getEggInfo(egg.Name)
+                    if not unique[egg.Name] then
+                        unique[egg.Name] = {rar=rar, lk=lk}
+                    end
+                end
+            end
+            updateAutoFarmEggList(unique)
+        end)
+        task.wait(1)
+    end
+end)
+
+-- =================== KEYBIND DO FLY ===================
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if _G.__xPHub_Unloaded then return end
+    if gpe then return end
+    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+    if _G.__KeybindJustSet and (os.clock() - _G.__KeybindJustSet) < 0.5 then return end
+    if input.KeyCode == FLY_KEYBIND then
+        local newState = not flying
+        if newState then startFly() else stopFly() end
+        setAllFlyToggles(newState)
+    end
+end)
+
+-- =================== FUNÇÃO DE UNLOAD COMPLETO ===================
+local function fullUnload()
+    _G.__xPHub_Unloaded = true
+
+    pcall(function() stopAutoFarm() end)
+    pcall(function() stopFly() end)
+    pcall(function() stopMovement() end)
+    pcall(function() disableNoclip() end)
+    pcall(function() unfreezeCharacter() end)
+    pcall(function() forceReleaseE() end)
+
+    pcall(function()
+        if renderedEggsListener then renderedEggsListener:Disconnect() end
+    end)
+
+    pcall(function()
+        if eggLoopThread then task.cancel(eggLoopThread) end
+    end)
+
+    pcall(clearAllESP)
+
+    pcall(function()
+        if _G.EggButtons then
+            for _, b in pairs(_G.EggButtons) do
+                if b and b.Parent then pcall(function() b:Destroy() end) end
+            end
+        end
+        if _G.AutoFarmButtons then
+            for _, b in pairs(_G.AutoFarmButtons) do
+                if b and b.Parent then pcall(function() b:Destroy() end) end
+            end
+        end
+    end)
+
+    _G.EggESPFilters = nil
+    _G.EggButtons = nil
+    _G.AutoFarmButtons = nil
+    _G.RarityFilters = nil
+    _G.RarityCheckboxes = nil
+    _G.__KeybindJustSet = nil
+    _G.xP_UI_Library = nil
+    _G.ESPEnabled = nil
+    _G.__AutoFarmDirty = nil
+    _G.__CarryingEgg = nil
+
+    pcall(function()
+        if xP_UI and xP_UI.ScreenGui then
+            xP_UI.ScreenGui:Destroy()
+        end
+    end)
+end
+
+-- =================== ABA CONFIG ===================
+local ConfigTab = xP_UI:CreateTab("Config", "⚙️")
+
+ConfigTab:CreateSection("Interface")
+ConfigTab:CreateSlider("Menu Scale (%)", 50, 150, 100, function(val)
+    xP_UI.UIScale.Scale = val / 100
+end)
+
+ConfigTab:CreateSection("Tema do Menu")
+ConfigTab:CreateColorPicker("Cor do Menu", Color3.fromRGB(8, 65, 135), function(color)
+    print("[xP Hub] Nova cor:", color)
+end)
+
+ConfigTab:CreateSection("Unload")
+ConfigTab:CreateRedButton("Unload Script", function()
+    fullUnload()
+end)
+
+-- =================== KEYBIND DO MENU ===================
+local ToggleKey = Enum.KeyCode.LeftAlt
+local uiVisible = true
+
+ConfigTab:CreateKeybind("Tecla do Menu", Enum.KeyCode.LeftAlt, function(key)
+    ToggleKey = key
+end)
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if _G.__xPHub_Unloaded then return end
+    if gpe then return end
+    if input.KeyCode == ToggleKey then
+        uiVisible = not uiVisible
+        if xP_UI and xP_UI.MainFrame then
+            xP_UI.MainFrame.Visible = uiVisible
+        end
+    end
+end)
