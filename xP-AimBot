@@ -1,3 +1,8 @@
+-- ═══════════════════════════════════════════════════════════════
+--  xP AimBot + ESP + UI Settings (Obsidian Library)
+--  Criado por evertonXpp
+-- ═══════════════════════════════════════════════════════════════
+
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
@@ -10,11 +15,11 @@ Library.ForceCheckbox = false
 Library.ShowToggleFrameInKeybinds = true
 
 --// SERVICES
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local UserInputService  = game:GetService("UserInputService")
+local Workspace         = game:GetService("Workspace")
+local CoreGui           = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace:FindFirstChild("CustomCamera")
@@ -24,42 +29,40 @@ end
 
 --// SETTINGS (valores padrão)
 local Settings = {
-    AimEnabled = true,
-    AimKey = Enum.UserInputType.MouseButton2,
-    FOV = 150,
-    Smoothness = 1.0,
-    YOffset = 1.5,
-    VisCheck = false,
-    TeamCheck = false,
-    AutoSwitch = true,
+    AimEnabled  = true,
+    AimKey      = Enum.UserInputType.MouseButton2,
+    FOV         = 150,
+    Smoothness  = 1.0,
+    YOffset     = 1.5,
+    VisCheck    = false,
+    TeamCheck   = false,
+    AutoSwitch  = true,
 
-    ESPEnabled = true,
-    ESPBoxes = true,
-    ESPTracers = true,
-    ESPInfo = true,
-    ESPDrawFOV = true,
-    ESPMaxDist = 300,  -- ALTERADO PARA 300
-    ESPHeartBar = false,
-    ESPSkeleton = false,
+    ESPEnabled   = true,
+    ESPBoxes     = true,
+    ESPTracers   = true,
+    ESPInfo      = true,
+    ESPDrawFOV   = true,
+    ESPMaxDist   = 300,
+    ESPHeartBar  = false,
+    ESPSkeleton  = false,
 
-    -- Novos ESPs (Boros extras)
-    ESPCorner = false,
-    ESPFilled = false,
-    ESPWeapons = false,
-    ESPChams = false,
+    ESPCorner    = false,
+    ESPFilled    = false,
+    ESPWeapons   = false,
+    ESPChams     = false,
 
-    BoxSizeMultiplier = 1.0,  -- REDUZIDO
+    BoxSizeMultiplier = 1.0,
     MenuKey = Enum.KeyCode.LeftAlt,
 }
 
 --// STATE
 local CurrentTarget = nil
-local HoldingAim = false
-local ESPTable = {}      -- Para Skeleton (Drawing)
-local ScriptActive = true
-local MenuVisible = true
+local HoldingAim    = false
+local ESPTable      = {}
+local ScriptActive  = true
 
---// DRAWING OBJECTS (FOV, Target, Tracers, Skeleton)
+--// DRAWING OBJECTS
 local FOVDraw = Drawing.new("Circle")
 FOVDraw.Thickness = 1
 FOVDraw.NumSides = 64
@@ -75,10 +78,9 @@ TargetDraw.Filled = false
 TargetDraw.ZIndex = 5
 TargetDraw.Color = Color3.fromRGB(255, 50, 50)
 
--- Tracers storage
 local TracersTable = {}
 
---// BOROS ESP - ESTRUTURA (substitui Box, Name, Distance, Health Bar)
+--// BOROS ESP
 local BorosScreenGui = Instance.new("ScreenGui")
 BorosScreenGui.Name = "BorosESP_xPAim"
 BorosScreenGui.Parent = CoreGui
@@ -90,89 +92,51 @@ local BorosPlayers = {}
 local RotationAngle = -45
 local TickTime = tick()
 
--- Configurações do Boros (mapeadas para Settings)
 local BorosConfig = {
     Enabled = false,
     MaxDistance = 300,
-    FontSize = 10,  -- REDUZIDO
+    FontSize = 10,
     Font = Enum.Font.Code,
     FadeOut = { OnDistance = false, OnDeath = true, OnLeave = false },
     Drawing = {
-        Names = {
-            Enabled = false,
-            Transparency = 0,
-            RGB = Color3.fromRGB(255, 255, 255),
-        },
-        Distances = {
-            Enabled = false,
-            Position = "Bottom",
-            Transparency = 0,
-            RGB = Color3.fromRGB(255, 255, 255),
-        },
+        Names = { Enabled = false, Transparency = 0, RGB = Color3.fromRGB(255, 255, 255) },
+        Distances = { Enabled = false, Position = "Bottom", Transparency = 0, RGB = Color3.fromRGB(255, 255, 255) },
         Weapons = {
-            Enabled = false,
-            WeaponTextRGB = Color3.fromRGB(119, 120, 255),
-            Outlined = false,
-            Gradient = false,
-            Transparency = 0,
+            Enabled = false, WeaponTextRGB = Color3.fromRGB(119, 120, 255),
+            Outlined = false, Gradient = false, Transparency = 0,
             GradientRGB1 = Color3.fromRGB(255, 255, 255),
             GradientRGB2 = Color3.fromRGB(119, 120, 255),
         },
         Healthbar = {
-            Enabled = false,
-            HealthText = false,
-            Lerp = true,
+            Enabled = false, HealthText = false, Lerp = true,
             HealthTextRGB = Color3.fromRGB(0, 255, 0),
-            Width = 2,
-            Transparency = 0,
-            HealthTextTransparency = 0,
+            Width = 2, Transparency = 0, HealthTextTransparency = 0,
             Gradient = true,
             GradientRGB1 = Color3.fromRGB(255, 0, 0),
-            GradientRGB2 = Color3.fromRGB(0,255,0)
+            GradientRGB2 = Color3.fromRGB(0, 255, 0),
         },
         Boxes = {
-            Animate = true,
-            RotationSpeed = 300,
+            Animate = true, RotationSpeed = 300,
             Gradient = false,
             GradientRGB1 = Color3.fromRGB(119, 120, 255),
             GradientRGB2 = Color3.fromRGB(0, 0, 0),
             GradientFill = true,
             GradientFillRGB1 = Color3.fromRGB(119, 120, 255),
             GradientFillRGB2 = Color3.fromRGB(0, 0, 0),
-            Filled = {
-                Enabled = false,
-                Transparency = 0.75,
-                RGB = Color3.fromRGB(0, 0, 0),
-            },
-            Full = {
-                Enabled = true,
-                Transparency = 0,
-                RGB = Color3.fromRGB(255, 255, 255),
-            },
-            Bounding = {
-                Enabled = false,
-                Transparency = 0,
-                RGB = Color3.fromRGB(255, 255, 255),
-            },
-            Corner = {
-                Enabled = false,
-                Transparency = 0,
-                RGB = Color3.fromRGB(255, 255, 255),
-            },
+            Filled  = { Enabled = false, Transparency = 0.75, RGB = Color3.fromRGB(0, 0, 0) },
+            Full    = { Enabled = true, Transparency = 0, RGB = Color3.fromRGB(255, 255, 255) },
+            Bounding = { Enabled = false, Transparency = 0, RGB = Color3.fromRGB(255, 255, 255) },
+            Corner   = { Enabled = false, Transparency = 0, RGB = Color3.fromRGB(255, 255, 255) },
         },
         Chams = {
-            Enabled  = false,
-            Thermal = false,
-            FillRGB = Color3.fromRGB(119, 120, 255),
-            Fill_Transparency = 80,
-            OutlineRGB = Color3.fromRGB(0,0,0),
-            Outline_Transparency = 80,
+            Enabled = false, Thermal = false,
+            FillRGB = Color3.fromRGB(119, 120, 255), Fill_Transparency = 80,
+            OutlineRGB = Color3.fromRGB(0, 0, 0),   Outline_Transparency = 80,
             VisibleCheck = false,
         },
     },
 }
 
--- Helper para criar objetos
 local function Create(Class, Properties)
     local obj = Instance.new(Class)
     for k, v in pairs(Properties) do obj[k] = v end
@@ -190,7 +154,6 @@ local function GetHealthColor(current, max)
     return BorosConfig.Drawing.Healthbar.GradientRGB1:Lerp(BorosConfig.Drawing.Healthbar.GradientRGB2, current / max)
 end
 
--- Função para atualizar todos os elementos Boros
 local function RefreshAllBorosElements()
     for name, data in pairs(BorosPlayers) do
         if data and data.Container and data.Container.Parent then
@@ -203,14 +166,12 @@ local function RefreshAllBorosElements()
     end
 end
 
--- IsEnemy baseado no TeamCheck do Settings
 local function IsEnemy(plr)
     if plr == LocalPlayer then return false end
     if not Settings.TeamCheck then return true end
     return plr.Team ~= LocalPlayer.Team
 end
 
--- Cria Boros ESP para um jogador
 local function CreateBorosESP(plr)
     if plr == LocalPlayer then return end
 
@@ -218,104 +179,69 @@ local function CreateBorosESP(plr)
     if oldContainer then oldContainer:Destroy() end
 
     local container = Create("Frame", {
-        Parent = BorosScreenGui,
-        Name = plr.Name,
+        Parent = BorosScreenGui, Name = plr.Name,
         Size = UDim2.new(0, 0, 0, 0),
-        BackgroundTransparency = 1,
-        Visible = true,
+        BackgroundTransparency = 1, Visible = true,
     })
 
-    -- Elementos
     local Name = Create("TextLabel", {
         Parent = container,
-        Position = UDim2.new(0.5, 0, 0, -9),
-        Size = UDim2.new(0, 80, 0, 16),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 1,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        Font = BorosConfig.Font,
-        TextSize = BorosConfig.FontSize,
-        TextStrokeTransparency = 0,
-        TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
-        RichText = true,
-        Visible = false,
+        Position = UDim2.new(0.5, 0, 0, -9), Size = UDim2.new(0, 80, 0, 16),
+        AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1,
+        TextColor3 = Color3.fromRGB(255, 255, 255), Font = BorosConfig.Font,
+        TextSize = BorosConfig.FontSize, TextStrokeTransparency = 0,
+        TextStrokeColor3 = Color3.fromRGB(0, 0, 0), RichText = true, Visible = false,
     })
     local Distance = Create("TextLabel", {
         Parent = container,
-        Position = UDim2.new(0.5, 0, 0, 9),
-        Size = UDim2.new(0, 80, 0, 16),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 1,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        Font = BorosConfig.Font,
-        TextSize = BorosConfig.FontSize,
-        TextStrokeTransparency = 0,
-        TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
-        RichText = true,
-        Visible = false,
+        Position = UDim2.new(0.5, 0, 0, 9), Size = UDim2.new(0, 80, 0, 16),
+        AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1,
+        TextColor3 = Color3.fromRGB(255, 255, 255), Font = BorosConfig.Font,
+        TextSize = BorosConfig.FontSize, TextStrokeTransparency = 0,
+        TextStrokeColor3 = Color3.fromRGB(0, 0, 0), RichText = true, Visible = false,
     })
     local Weapon = Create("TextLabel", {
         Parent = container,
-        Position = UDim2.new(0.5, 0, 0, 27),
-        Size = UDim2.new(0, 80, 0, 16),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 1,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        Font = BorosConfig.Font,
-        TextSize = BorosConfig.FontSize - 1,
-        TextStrokeTransparency = 0,
-        TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
-        RichText = true,
-        Text = "None",
-        Visible = false,
+        Position = UDim2.new(0.5, 0, 0, 27), Size = UDim2.new(0, 80, 0, 16),
+        AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1,
+        TextColor3 = Color3.fromRGB(255, 255, 255), Font = BorosConfig.Font,
+        TextSize = BorosConfig.FontSize - 1, TextStrokeTransparency = 0,
+        TextStrokeColor3 = Color3.fromRGB(0, 0, 0), RichText = true,
+        Text = "None", Visible = false,
     })
     local Box = Create("Frame", {
-        Parent = container,
-        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-        BackgroundTransparency = 0.75,
-        BorderSizePixel = 0,
-        Visible = false,
+        Parent = container, BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.75, BorderSizePixel = 0, Visible = false,
     })
     local Gradient1 = Create("UIGradient", {
-        Parent = Box,
-        Enabled = BorosConfig.Drawing.Boxes.GradientFill,
+        Parent = Box, Enabled = BorosConfig.Drawing.Boxes.GradientFill,
         Color = ColorSequence.new{
             ColorSequenceKeypoint.new(0, BorosConfig.Drawing.Boxes.GradientFillRGB1),
             ColorSequenceKeypoint.new(1, BorosConfig.Drawing.Boxes.GradientFillRGB2)
         }
     })
     local Outline = Create("UIStroke", {
-        Parent = Box,
-        Enabled = BorosConfig.Drawing.Boxes.Gradient,
-        Transparency = 0,
-        Color = Color3.fromRGB(255, 255, 255),
+        Parent = Box, Enabled = BorosConfig.Drawing.Boxes.Gradient,
+        Transparency = 0, Color = Color3.fromRGB(255, 255, 255),
         LineJoinMode = Enum.LineJoinMode.Miter,
     })
     local Gradient2 = Create("UIGradient", {
-        Parent = Outline,
-        Enabled = BorosConfig.Drawing.Boxes.Gradient,
+        Parent = Outline, Enabled = BorosConfig.Drawing.Boxes.Gradient,
         Color = ColorSequence.new{
             ColorSequenceKeypoint.new(0, BorosConfig.Drawing.Boxes.GradientRGB1),
             ColorSequenceKeypoint.new(1, BorosConfig.Drawing.Boxes.GradientRGB2)
         }
     })
     local Healthbar = Create("Frame", {
-        Parent = container,
-        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BackgroundTransparency = 0,
-        Visible = false,
+        Parent = container, BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 0, Visible = false,
     })
     local BehindHealthbar = Create("Frame", {
-        Parent = container,
-        BorderColor3 = Color3.fromRGB(0, 0, 0),
-        ZIndex = -1,
-        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-        BackgroundTransparency = 0,
-        Visible = false,
+        Parent = container, BorderColor3 = Color3.fromRGB(0, 0, 0), ZIndex = -1,
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 0, Visible = false,
     })
     local HealthbarGradient = Create("UIGradient", {
-        Parent = Healthbar,
-        Enabled = BorosConfig.Drawing.Healthbar.Gradient,
+        Parent = Healthbar, Enabled = BorosConfig.Drawing.Healthbar.Gradient,
         Rotation = -90,
         Color = ColorSequence.new{
             ColorSequenceKeypoint.new(0, BorosConfig.Drawing.Healthbar.GradientRGB1),
@@ -324,90 +250,25 @@ local function CreateBorosESP(plr)
     })
     local HealthText = Create("TextLabel", {
         Parent = container,
-        Position = UDim2.new(0.5, 0, 0, 27),
-        Size = UDim2.new(0, 80, 0, 16),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 1,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        Font = BorosConfig.Font,
-        TextSize = BorosConfig.FontSize - 1,
-        TextStrokeTransparency = 0,
-        TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
-        ZIndex = 500,
-        Visible = false,
+        Position = UDim2.new(0.5, 0, 0, 27), Size = UDim2.new(0, 80, 0, 16),
+        AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1,
+        TextColor3 = Color3.fromRGB(255, 255, 255), Font = BorosConfig.Font,
+        TextSize = BorosConfig.FontSize - 1, TextStrokeTransparency = 0,
+        TextStrokeColor3 = Color3.fromRGB(0, 0, 0), ZIndex = 500, Visible = false,
     })
     local Chams = Create("Highlight", {
-        Parent = container,
-        FillTransparency = 1,
-        OutlineTransparency = 0,
+        Parent = container, FillTransparency = 1, OutlineTransparency = 0,
         OutlineColor = Color3.fromRGB(119, 120, 255),
-        DepthMode = "AlwaysOnTop",
-        Enabled = false,
+        DepthMode = "AlwaysOnTop", Enabled = false,
     })
-    local LeftTop = Create("Frame", {
-        Parent = container,
-        BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB,
-        Position = UDim2.new(0, 0, 0, 0),
-        BorderSizePixel = 0,
-        BorderColor3 = Color3.new(0,0,0),
-        Visible = false,
-    })
-    local LeftSide = Create("Frame", {
-        Parent = container,
-        BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB,
-        Position = UDim2.new(0, 0, 0, 0),
-        BorderSizePixel = 0,
-        BorderColor3 = Color3.new(0,0,0),
-        Visible = false,
-    })
-    local RightTop = Create("Frame", {
-        Parent = container,
-        BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB,
-        Position = UDim2.new(0, 0, 0, 0),
-        BorderSizePixel = 0,
-        BorderColor3 = Color3.new(0,0,0),
-        Visible = false,
-    })
-    local RightSide = Create("Frame", {
-        Parent = container,
-        BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB,
-        Position = UDim2.new(0, 0, 0, 0),
-        BorderSizePixel = 0,
-        BorderColor3 = Color3.new(0,0,0),
-        Visible = false,
-    })
-    local BottomSide = Create("Frame", {
-        Parent = container,
-        BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB,
-        Position = UDim2.new(0, 0, 0, 0),
-        BorderSizePixel = 0,
-        BorderColor3 = Color3.new(0,0,0),
-        Visible = false,
-    })
-    local BottomDown = Create("Frame", {
-        Parent = container,
-        BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB,
-        Position = UDim2.new(0, 0, 0, 0),
-        BorderSizePixel = 0,
-        BorderColor3 = Color3.new(0,0,0),
-        Visible = false,
-    })
-    local BottomRightSide = Create("Frame", {
-        Parent = container,
-        BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB,
-        Position = UDim2.new(0, 0, 0, 0),
-        BorderSizePixel = 0,
-        BorderColor3 = Color3.new(0,0,0),
-        Visible = false,
-    })
-    local BottomRightDown = Create("Frame", {
-        Parent = container,
-        BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB,
-        Position = UDim2.new(0, 0, 0, 0),
-        BorderSizePixel = 0,
-        BorderColor3 = Color3.new(0,0,0),
-        Visible = false,
-    })
+    local LeftTop          = Create("Frame", { Parent = container, BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB, Position = UDim2.new(0, 0, 0, 0), BorderSizePixel = 0, BorderColor3 = Color3.new(0,0,0), Visible = false })
+    local LeftSide         = Create("Frame", { Parent = container, BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB, Position = UDim2.new(0, 0, 0, 0), BorderSizePixel = 0, BorderColor3 = Color3.new(0,0,0), Visible = false })
+    local RightTop         = Create("Frame", { Parent = container, BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB, Position = UDim2.new(0, 0, 0, 0), BorderSizePixel = 0, BorderColor3 = Color3.new(0,0,0), Visible = false })
+    local RightSide        = Create("Frame", { Parent = container, BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB, Position = UDim2.new(0, 0, 0, 0), BorderSizePixel = 0, BorderColor3 = Color3.new(0,0,0), Visible = false })
+    local BottomSide       = Create("Frame", { Parent = container, BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB, Position = UDim2.new(0, 0, 0, 0), BorderSizePixel = 0, BorderColor3 = Color3.new(0,0,0), Visible = false })
+    local BottomDown       = Create("Frame", { Parent = container, BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB, Position = UDim2.new(0, 0, 0, 0), BorderSizePixel = 0, BorderColor3 = Color3.new(0,0,0), Visible = false })
+    local BottomRightSide  = Create("Frame", { Parent = container, BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB, Position = UDim2.new(0, 0, 0, 0), BorderSizePixel = 0, BorderColor3 = Color3.new(0,0,0), Visible = false })
+    local BottomRightDown  = Create("Frame", { Parent = container, BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB, Position = UDim2.new(0, 0, 0, 0), BorderSizePixel = 0, BorderColor3 = Color3.new(0,0,0), Visible = false })
 
     AddOutline(LeftTop, 1)
     AddOutline(LeftSide, 1)
@@ -442,41 +303,41 @@ local function CreateBorosESP(plr)
         end
 
         if not BorosConfig.Drawing.Boxes.Bounding.Enabled or (BorosConfig.Drawing.Boxes.Corner.Enabled and BorosConfig.Drawing.Boxes.Bounding.Enabled) then
-            LeftTop.Transparency = BorosConfig.Drawing.Boxes.Corner.Transparency
-            LeftTop.BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB
-            LeftSide.Transparency = BorosConfig.Drawing.Boxes.Corner.Transparency
-            LeftSide.BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB
-            BottomSide.Transparency = BorosConfig.Drawing.Boxes.Corner.Transparency
-            BottomSide.BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB
-            BottomDown.Transparency = BorosConfig.Drawing.Boxes.Corner.Transparency
-            BottomDown.BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB
-            RightTop.Transparency = BorosConfig.Drawing.Boxes.Corner.Transparency
-            RightTop.BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB
-            RightSide.Transparency = BorosConfig.Drawing.Boxes.Corner.Transparency
-            RightSide.BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB
-            BottomRightSide.Transparency = BorosConfig.Drawing.Boxes.Corner.Transparency
-            BottomRightSide.BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB
-            BottomRightDown.Transparency = BorosConfig.Drawing.Boxes.Corner.Transparency
-            BottomRightDown.BackgroundColor3 = BorosConfig.Drawing.Boxes.Corner.RGB
+            LeftTop.BackgroundTransparency         = BorosConfig.Drawing.Boxes.Corner.Transparency
+            LeftTop.BackgroundColor3               = BorosConfig.Drawing.Boxes.Corner.RGB
+            LeftSide.BackgroundTransparency        = BorosConfig.Drawing.Boxes.Corner.Transparency
+            LeftSide.BackgroundColor3              = BorosConfig.Drawing.Boxes.Corner.RGB
+            BottomSide.BackgroundTransparency      = BorosConfig.Drawing.Boxes.Corner.Transparency
+            BottomSide.BackgroundColor3            = BorosConfig.Drawing.Boxes.Corner.RGB
+            BottomDown.BackgroundTransparency      = BorosConfig.Drawing.Boxes.Corner.Transparency
+            BottomDown.BackgroundColor3            = BorosConfig.Drawing.Boxes.Corner.RGB
+            RightTop.BackgroundTransparency        = BorosConfig.Drawing.Boxes.Corner.Transparency
+            RightTop.BackgroundColor3              = BorosConfig.Drawing.Boxes.Corner.RGB
+            RightSide.BackgroundTransparency       = BorosConfig.Drawing.Boxes.Corner.Transparency
+            RightSide.BackgroundColor3             = BorosConfig.Drawing.Boxes.Corner.RGB
+            BottomRightSide.BackgroundTransparency = BorosConfig.Drawing.Boxes.Corner.Transparency
+            BottomRightSide.BackgroundColor3       = BorosConfig.Drawing.Boxes.Corner.RGB
+            BottomRightDown.BackgroundTransparency = BorosConfig.Drawing.Boxes.Corner.Transparency
+            BottomRightDown.BackgroundColor3       = BorosConfig.Drawing.Boxes.Corner.RGB
         end
 
         if not BorosConfig.Drawing.Boxes.Corner.Enabled then
-            LeftTop.Transparency = BorosConfig.Drawing.Boxes.Bounding.Transparency
-            LeftSide.Transparency = BorosConfig.Drawing.Boxes.Bounding.Transparency
-            BottomSide.Transparency = BorosConfig.Drawing.Boxes.Bounding.Transparency
-            RightSide.Transparency = BorosConfig.Drawing.Boxes.Bounding.Transparency
-            LeftTop.BackgroundColor3 = BorosConfig.Drawing.Boxes.Bounding.RGB
-            LeftSide.BackgroundColor3 = BorosConfig.Drawing.Boxes.Bounding.RGB
-            BottomSide.BackgroundColor3 = BorosConfig.Drawing.Boxes.Bounding.RGB
-            RightSide.BackgroundColor3 = BorosConfig.Drawing.Boxes.Bounding.RGB
+            LeftTop.BackgroundTransparency    = BorosConfig.Drawing.Boxes.Bounding.Transparency
+            LeftSide.BackgroundTransparency   = BorosConfig.Drawing.Boxes.Bounding.Transparency
+            BottomSide.BackgroundTransparency = BorosConfig.Drawing.Boxes.Bounding.Transparency
+            RightSide.BackgroundTransparency  = BorosConfig.Drawing.Boxes.Bounding.Transparency
+            LeftTop.BackgroundColor3          = BorosConfig.Drawing.Boxes.Bounding.RGB
+            LeftSide.BackgroundColor3         = BorosConfig.Drawing.Boxes.Bounding.RGB
+            BottomSide.BackgroundColor3       = BorosConfig.Drawing.Boxes.Bounding.RGB
+            RightSide.BackgroundColor3        = BorosConfig.Drawing.Boxes.Bounding.RGB
         end
 
-        BottomSide.AnchorPoint = Vector2.new(0, 5)
-        BottomDown.AnchorPoint = Vector2.new(0, 1)
-        RightTop.AnchorPoint = Vector2.new(1, 0)
-        RightSide.AnchorPoint = Vector2.new(0, 0)
-        BottomRightSide.AnchorPoint = Vector2.new(1, 1)
-        BottomRightDown.AnchorPoint = Vector2.new(1, 1)
+        BottomSide.AnchorPoint       = Vector2.new(0, 1)
+        BottomDown.AnchorPoint       = Vector2.new(0, 1)
+        RightTop.AnchorPoint         = Vector2.new(1, 0)
+        RightSide.AnchorPoint        = Vector2.new(0, 0)
+        BottomRightSide.AnchorPoint  = Vector2.new(1, 1)
+        BottomRightDown.AnchorPoint  = Vector2.new(1, 1)
 
         Gradient1.Color = ColorSequence.new{
             ColorSequenceKeypoint.new(0, BorosConfig.Drawing.Boxes.GradientFillRGB1),
@@ -489,10 +350,8 @@ local function CreateBorosESP(plr)
 
         Name.TextColor3 = BorosConfig.Drawing.Names.RGB
         Name.TextStrokeTransparency = BorosConfig.Drawing.Names.Transparency
-
         Distance.TextStrokeTransparency = BorosConfig.Drawing.Distances.Transparency
         Distance.TextColor3 = BorosConfig.Drawing.Distances.RGB
-
         Weapon.TextStrokeTransparency = BorosConfig.Drawing.Weapons.Transparency
         Weapon.TextColor3 = BorosConfig.Drawing.Weapons.WeaponTextRGB
 
@@ -502,16 +361,12 @@ local function CreateBorosESP(plr)
             ColorSequenceKeypoint.new(1, BorosConfig.Drawing.Healthbar.GradientRGB2)
         }
 
-        if BorosConfig.Drawing.Chams.VisibleCheck then
-            Chams.DepthMode = "Occluded"
-        else
-            Chams.DepthMode = "AlwaysOnTop"
-        end
+        Chams.DepthMode = BorosConfig.Drawing.Chams.VisibleCheck and "Occluded" or "AlwaysOnTop"
         Chams.FillColor = BorosConfig.Drawing.Chams.FillRGB
         Chams.OutlineColor = BorosConfig.Drawing.Chams.OutlineRGB
         if not BorosConfig.Drawing.Chams.Thermal then
             Chams.OutlineTransparency = BorosConfig.Drawing.Chams.Outline_Transparency / 100
-            Chams.FillTransparency = BorosConfig.Drawing.Chams.Fill_Transparency / 100
+            Chams.FillTransparency   = BorosConfig.Drawing.Chams.Fill_Transparency / 100
         end
     end
 
@@ -531,11 +386,7 @@ local function CreateBorosESP(plr)
             local healthtext = tostring(math.floor(health_clamped))
             if is_inf then healthtext = "inf" end
             HealthText.Text = healthtext
-            if BorosConfig.Drawing.Healthbar.Lerp then
-                HealthText.TextColor3 = color
-            else
-                HealthText.TextColor3 = BorosConfig.Drawing.Healthbar.HealthTextRGB
-            end
+            HealthText.TextColor3 = BorosConfig.Drawing.Healthbar.Lerp and color or BorosConfig.Drawing.Healthbar.HealthTextRGB
             HealthText.Visible = true
         else
             HealthText.Visible = false
@@ -552,17 +403,8 @@ local function CreateBorosESP(plr)
         end
     end
 
-    local function OnChildAdded(item)
-        if item:IsA("Tool") then
-            UpdateWeapon()
-        end
-    end
-
-    local function OnChildRemoved(item)
-        if item:IsA("Tool") then
-            UpdateWeapon()
-        end
-    end
+    local function OnChildAdded(item)   if item:IsA("Tool") then UpdateWeapon() end end
+    local function OnChildRemoved(item) if item:IsA("Tool") then UpdateWeapon() end end
 
     local function SetupCharacter(char)
         local hum = char:WaitForChild("Humanoid")
@@ -573,9 +415,7 @@ local function CreateBorosESP(plr)
         RefreshElements()
     end
 
-    if plr.Character then
-        SetupCharacter(plr.Character)
-    end
+    if plr.Character then SetupCharacter(plr.Character) end
     local charAddedConn = plr.CharacterAdded:Connect(SetupCharacter)
 
     local function HideAllElements()
@@ -599,27 +439,13 @@ local function CreateBorosESP(plr)
     end
 
     local renderConn = RunService.RenderStepped:Connect(function()
-        if not Settings.ESPEnabled or not BorosConfig.Enabled then
-            HideAllElements()
-            return
-        end
-
-        if not plr.Character or not LocalPlayer.Character then
-            HideAllElements()
-            return
-        end
-
-        if not IsEnemy(plr) then
-            HideAllElements()
-            return
-        end
+        if not Settings.ESPEnabled or not BorosConfig.Enabled then HideAllElements() return end
+        if not plr.Character or not LocalPlayer.Character then HideAllElements() return end
+        if not IsEnemy(plr) then HideAllElements() return end
 
         local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
         local hum = plr.Character:FindFirstChild("Humanoid")
-        if not hrp or not hum or hum.Health <= 0 then
-            HideAllElements()
-            return
-        end
+        if not hrp or not hum or hum.Health <= 0 then HideAllElements() return end
 
         local pos, onScreen = Camera:WorldToScreenPoint(hrp.Position)
         local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
@@ -627,7 +453,6 @@ local function CreateBorosESP(plr)
         if onScreen and dist <= BorosConfig.MaxDistance then
             local size = hrp.Size.Y
             local scaleFactor = (size * Camera.ViewportSize.Y) / (pos.Z * 2)
-            -- Ajuste de tamanho reduzido
             local w = 2.5 * scaleFactor
             local h = 3.8 * scaleFactor
 
@@ -640,14 +465,14 @@ local function CreateBorosESP(plr)
                 BehindHealthbar.BackgroundTransparency = 1 - transparency
                 HealthText.TextTransparency = 1 - transparency
                 Box.BackgroundTransparency = 1 - transparency
-                LeftTop.Transparency = 1 - transparency
-                LeftSide.Transparency = 1 - transparency
-                BottomSide.Transparency = 1 - transparency
-                BottomDown.Transparency = 1 - transparency
-                RightTop.Transparency = 1 - transparency
-                RightSide.Transparency = 1 - transparency
-                BottomRightSide.Transparency = 1 - transparency
-                BottomRightDown.Transparency = 1 - transparency
+                LeftTop.BackgroundTransparency = 1 - transparency
+                LeftSide.BackgroundTransparency = 1 - transparency
+                BottomSide.BackgroundTransparency = 1 - transparency
+                BottomDown.BackgroundTransparency = 1 - transparency
+                RightTop.BackgroundTransparency = 1 - transparency
+                RightSide.BackgroundTransparency = 1 - transparency
+                BottomRightSide.BackgroundTransparency = 1 - transparency
+                BottomRightDown.BackgroundTransparency = 1 - transparency
                 Chams.FillTransparency = 1 - transparency
                 Chams.OutlineTransparency = 1 - transparency
                 Outline.Transparency = 1 - transparency
@@ -726,6 +551,7 @@ local function CreateBorosESP(plr)
                 Healthbar.Visible = true
                 BehindHealthbar.Visible = true
                 HealthText.Position = UDim2.new(0, pos.X - w/2 - 16, 0, pos.Y - h/2 + h * (1 - health) + 3)
+                HealthText.Visible = BorosConfig.Drawing.Healthbar.HealthText
             else
                 Healthbar.Visible = false
                 BehindHealthbar.Visible = false
@@ -742,7 +568,6 @@ local function CreateBorosESP(plr)
                 Gradient2.Rotation = RotationAngle
             end
             TickTime = tick()
-
         else
             HideAllElements()
         end
@@ -757,7 +582,6 @@ local function CreateBorosESP(plr)
     }
 end
 
--- Inicializa Boros ESP para jogadores existentes
 local function InitBorosESP()
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then
@@ -766,31 +590,18 @@ local function InitBorosESP()
     end
 end
 
--- Remove Boros ESP de um jogador
 local function RemoveBorosESP(plr)
     local data = BorosPlayers[plr.Name]
     if data then
-        if data.RenderConn then
-            data.RenderConn:Disconnect()
-            data.RenderConn = nil
-        end
-        if data.CharAddedConn then
-            data.CharAddedConn:Disconnect()
-            data.CharAddedConn = nil
-        end
-        if data.Container then
-            pcall(function() data.Container:Destroy() end)
-            data.Container = nil
-        end
+        if data.RenderConn then data.RenderConn:Disconnect() data.RenderConn = nil end
+        if data.CharAddedConn then data.CharAddedConn:Disconnect() data.CharAddedConn = nil end
+        if data.Container then pcall(function() data.Container:Destroy() end) data.Container = nil end
         BorosPlayers[plr.Name] = nil
     end
     local container = BorosScreenGui:FindFirstChild(plr.Name)
-    if container then
-        pcall(function() container:Destroy() end)
-    end
+    if container then pcall(function() container:Destroy() end) end
 end
 
--- Sincroniza configurações do Settings com BorosConfig
 local function SyncBorosConfig()
     BorosConfig.Enabled = Settings.ESPEnabled
     BorosConfig.MaxDistance = Settings.ESPMaxDist
@@ -806,28 +617,22 @@ local function SyncBorosConfig()
     RefreshAllBorosElements()
 end
 
--- Inicializa
 InitBorosESP()
 SyncBorosConfig()
 
--- Evento para quando um novo jogador entra (CORRIGIDO)
 Players.PlayerAdded:Connect(function(plr)
-    if plr ~= LocalPlayer then
-        CreateBorosESP(plr)
-    end
+    if plr ~= LocalPlayer then CreateBorosESP(plr) end
 end)
 
--- Evento para quando um jogador sai
 Players.PlayerRemoving:Connect(function(plr)
     RemoveBorosESP(plr)
-    -- Também remove o Skeleton se existir
     RemoveESP(plr)
     if CurrentTarget and CurrentTarget.Player == plr then
         CurrentTarget = nil
     end
 end)
 
---// FUNÇÕES AUXILIARES (para o aimbot)
+--// FUNÇÕES AUXILIARES
 local function IsAlive(char)
     if not char then return false end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -842,20 +647,16 @@ local function GetAimPosition(part)
     return part.Position + Vector3.new(0, Settings.YOffset, 0)
 end
 
-local function GetHealth(char)
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        return math.floor(hum.Health), math.floor(hum.MaxHealth)
-    end
-    return 0, 100
-end
-
 local function IsVisible(character, worldPos)
     if not Settings.VisCheck then return true end
     local origin = Camera.CFrame.Position
     local direction = worldPos - origin
     local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    local filter = {Camera}
+    if LocalPlayer.Character then
+        table.insert(filter, LocalPlayer.Character)
+    end
+    rayParams.FilterDescendantsInstances = filter
     rayParams.FilterType = Enum.RaycastFilterType.Blacklist
     local result = Workspace:Raycast(origin, direction, rayParams)
     if result and result.Instance then
@@ -870,15 +671,10 @@ local function IsTargetValid(player)
     return true
 end
 
---// SISTEMA DE SKELETON (Drawing) - mantido do antigo ESP
+--// SKELETON
 function GetESP(player)
     if not ESPTable[player] then
-        local skeletonLines = {}
-        ESPTable[player] = {
-            SkeletonLines = skeletonLines,
-            Player = player,
-            Character = nil,
-        }
+        ESPTable[player] = { SkeletonLines = {}, Player = player, Character = nil }
     end
     return ESPTable[player]
 end
@@ -887,9 +683,7 @@ function RemoveESP(player)
     local data = ESPTable[player]
     if not data then return end
     for _, lineData in ipairs(data.SkeletonLines) do
-        if lineData and lineData[1] then
-            pcall(function() lineData[1]:Remove() end)
-        end
+        if lineData and lineData[1] then pcall(function() lineData[1]:Remove() end) end
     end
     ESPTable[player] = nil
 end
@@ -909,27 +703,22 @@ function BuildSkeletonLines(char, color)
 
     local upperTorso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
     local lowerTorso = char:FindFirstChild("LowerTorso") or char:FindFirstChild("Torso")
-    local head = char:FindFirstChild("Head")
+    local head       = char:FindFirstChild("Head")
 
-    local leftUpperArm = char:FindFirstChild("LeftUpperArm") or char:FindFirstChild("Left Arm")
-    local leftLowerArm = char:FindFirstChild("LeftLowerArm") or char:FindFirstChild("Left Arm")
-    local leftHand = char:FindFirstChild("LeftHand") or char:FindFirstChild("Left Arm")
-
+    local leftUpperArm  = char:FindFirstChild("LeftUpperArm")  or char:FindFirstChild("Left Arm")
+    local leftLowerArm  = char:FindFirstChild("LeftLowerArm")  or char:FindFirstChild("Left Arm")
+    local leftHand      = char:FindFirstChild("LeftHand")      or char:FindFirstChild("Left Arm")
     local rightUpperArm = char:FindFirstChild("RightUpperArm") or char:FindFirstChild("Right Arm")
     local rightLowerArm = char:FindFirstChild("RightLowerArm") or char:FindFirstChild("Right Arm")
-    local rightHand = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
-
-    local leftUpperLeg = char:FindFirstChild("LeftUpperLeg") or char:FindFirstChild("Left Leg")
-    local leftLowerLeg = char:FindFirstChild("LeftLowerLeg") or char:FindFirstChild("Left Leg")
-    local leftFoot = char:FindFirstChild("LeftFoot") or char:FindFirstChild("Left Leg")
-
+    local rightHand     = char:FindFirstChild("RightHand")     or char:FindFirstChild("Right Arm")
+    local leftUpperLeg  = char:FindFirstChild("LeftUpperLeg")  or char:FindFirstChild("Left Leg")
+    local leftLowerLeg  = char:FindFirstChild("LeftLowerLeg")  or char:FindFirstChild("Left Leg")
+    local leftFoot      = char:FindFirstChild("LeftFoot")      or char:FindFirstChild("Left Leg")
     local rightUpperLeg = char:FindFirstChild("RightUpperLeg") or char:FindFirstChild("Right Leg")
     local rightLowerLeg = char:FindFirstChild("RightLowerLeg") or char:FindFirstChild("Right Leg")
-    local rightFoot = char:FindFirstChild("RightFoot") or char:FindFirstChild("Right Leg")
+    local rightFoot     = char:FindFirstChild("RightFoot")     or char:FindFirstChild("Right Leg")
 
-    if upperTorso and lowerTorso and upperTorso ~= lowerTorso then
-        addLine(lowerTorso, upperTorso)
-    end
+    if upperTorso and lowerTorso and upperTorso ~= lowerTorso then addLine(lowerTorso, upperTorso) end
     addLine(upperTorso, head)
     addLine(upperTorso, leftUpperArm)
     addLine(leftUpperArm, leftLowerArm)
@@ -950,26 +739,18 @@ end
 function UpdateSkeletonLines(data, char, color)
     if data.Character ~= char then
         for _, lineData in ipairs(data.SkeletonLines) do
-            if lineData and lineData[1] then
-                pcall(function() lineData[1]:Remove() end)
-            end
+            if lineData and lineData[1] then pcall(function() lineData[1]:Remove() end) end
         end
         data.SkeletonLines = {}
-        if char then
-            data.SkeletonLines = BuildSkeletonLines(char, color)
-        end
+        if char then data.SkeletonLines = BuildSkeletonLines(char, color) end
         data.Character = char
     else
         for _, lineData in ipairs(data.SkeletonLines) do
-            if lineData and lineData[1] then
-                lineData[1].Color = color
-            end
+            if lineData and lineData[1] then lineData[1].Color = color end
         end
     end
 
-    if not char or #data.SkeletonLines == 0 then
-        return
-    end
+    if not char or #data.SkeletonLines == 0 then return end
 
     for _, lineData in ipairs(data.SkeletonLines) do
         local line, partA, partB = lineData[1], lineData[2], lineData[3]
@@ -978,7 +759,7 @@ function UpdateSkeletonLines(data, char, color)
             local posB, onB = Camera:WorldToViewportPoint(partB.Position)
             if onA and onB then
                 line.From = Vector2.new(posA.X, posA.Y)
-                line.To = Vector2.new(posB.X, posB.Y)
+                line.To   = Vector2.new(posB.X, posB.Y)
                 line.Visible = true
             else
                 line.Visible = false
@@ -989,12 +770,10 @@ function UpdateSkeletonLines(data, char, color)
     end
 end
 
---// TRACERS (Drawing)
+--// TRACERS
 local function UpdateTracer(player)
     if not Settings.ESPEnabled or not Settings.ESPTracers then
-        if TracersTable[player] then
-            TracersTable[player].Visible = false
-        end
+        if TracersTable[player] then TracersTable[player].Visible = false end
         return
     end
     if not IsTargetValid(player) then return end
@@ -1012,7 +791,7 @@ local function UpdateTracer(player)
     end
     local tracer = TracersTable[player]
     tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-    tracer.To = Vector2.new(pos.X, pos.Y)
+    tracer.To   = Vector2.new(pos.X, pos.Y)
     tracer.Visible = true
 end
 
@@ -1024,55 +803,50 @@ local function GetClosestPlayer()
 
     for _, player in ipairs(Players:GetPlayers()) do
         if not IsTargetValid(player) then continue end
-
         local char = player.Character
         local part = char and GetAimPart(char)
         if not part or not IsAlive(char) then continue end
-
         local aimPos = GetAimPosition(part)
         local pos, onScreen = Camera:WorldToViewportPoint(aimPos)
         if not onScreen then continue end
-
         local screenDist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
         if screenDist > Settings.FOV then continue end
-
         if not IsVisible(char, aimPos) then continue end
-
         local dist3D = (part.Position - Camera.CFrame.Position).Magnitude
         if dist3D < closestDist then
             closestDist = dist3D
             closest = {
-                Player = player,
-                Part = part,
-                Position = pos,
-                Distance = dist3D,
-                Notified = false,
+                Player = player, Part = part, Position = pos,
+                Distance = dist3D, Notified = false,
             }
         end
     end
-
     return closest
 end
 
---// CRIAR UI COM OBSIDIAN
+-- ═══════════════════════════════════════════════════════════════
+--  WINDOW  (Icon Obsidian + Footer Discord)
+-- ═══════════════════════════════════════════════════════════════
 local Window = Library:CreateWindow({
     Title = "xP AimBot",
-    Footer = "Criado por evertonXpp",
-    Icon = 125209590669138,
+    Footer = "Discord: https://discord.gg/sUhyccqrHs",
+    Icon = 96698707545893,
     NotifySide = "Right",
     ShowCustomCursor = true,
 })
 
 local Tabs = {
-    Aim = Window:AddTab("Aim", "crosshair"),
-    ESP = Window:AddTab("ESP", "eye"),
-    Config = Window:AddTab("Config", "settings"),
+    Aim         = Window:AddTab("Aim", "crosshair"),
+    ESP         = Window:AddTab("ESP", "eye"),
+    UISettings  = Window:AddTab("UI Settings", "settings"),
 }
 
--- ===== TAB AIM =====
+-- ═══════════════════════════════════════════════════════════════
+--  TAB AIM
+-- ═══════════════════════════════════════════════════════════════
 local aimGroup = Tabs.Aim:AddLeftGroupbox("Aimbot Settings", "target")
 
-local aimToggle = aimGroup:AddToggle("AimToggle", {
+aimGroup:AddToggle("AimToggle", {
     Text = "Enable Aim Lock",
     Default = Settings.AimEnabled,
     Tooltip = "Ativa o aimbot",
@@ -1088,45 +862,29 @@ local aimToggle = aimGroup:AddToggle("AimToggle", {
 aimGroup:AddSlider("FOVSlider", {
     Text = "FOV Radius",
     Default = Settings.FOV,
-    Min = 10,
-    Max = 800,
-    Rounding = 0,
-    Suffix = "°",
-    Callback = function(value)
-        Settings.FOV = value
-    end,
+    Min = 10, Max = 800, Rounding = 0, Suffix = "°",
+    Callback = function(value) Settings.FOV = value end,
 })
 
 aimGroup:AddSlider("SmoothnessSlider", {
     Text = "Smoothness (1=Hard)",
     Default = Settings.Smoothness,
-    Min = 0.01,
-    Max = 1,
-    Rounding = 2,
-    Callback = function(value)
-        Settings.Smoothness = value
-    end,
+    Min = 0.01, Max = 1, Rounding = 2,
+    Callback = function(value) Settings.Smoothness = value end,
 })
 
 aimGroup:AddSlider("YOffsetSlider", {
     Text = "Y-Offset",
     Default = Settings.YOffset,
-    Min = 0,
-    Max = 5,
-    Rounding = 1,
-    Suffix = "studs",
-    Callback = function(value)
-        Settings.YOffset = value
-    end,
+    Min = 0, Max = 5, Rounding = 1, Suffix = "studs",
+    Callback = function(value) Settings.YOffset = value end,
 })
 
 aimGroup:AddToggle("VisCheckToggle", {
     Text = "Visibility Check",
     Default = Settings.VisCheck,
     Tooltip = "Só mira se o alvo estiver visível",
-    Callback = function(value)
-        Settings.VisCheck = value
-    end,
+    Callback = function(value) Settings.VisCheck = value end,
 })
 
 aimGroup:AddToggle("TeamCheckToggle", {
@@ -1143,9 +901,7 @@ aimGroup:AddToggle("AutoSwitchToggle", {
     Text = "Auto Switch",
     Default = Settings.AutoSwitch,
     Tooltip = "Troca automaticamente para o alvo mais próximo",
-    Callback = function(value)
-        Settings.AutoSwitch = value
-    end,
+    Callback = function(value) Settings.AutoSwitch = value end,
 })
 
 aimGroup:AddLabel("Aim Key"):AddKeyPicker("AimKeyPicker", {
@@ -1159,224 +915,223 @@ aimGroup:AddLabel("Aim Key"):AddKeyPicker("AimKeyPicker", {
         else
             Settings.AimKey = NewKey
         end
-        Library:Notify({
-            Title = "Aim Key",
-            Description = "Nova tecla: " .. tostring(NewKey),
-            Time = 2,
-        })
+        Library:Notify({ Title = "Aim Key", Description = "Nova tecla: " .. tostring(NewKey), Time = 2 })
     end,
 })
 
--- ===== TAB ESP =====
+-- ═══════════════════════════════════════════════════════════════
+--  TAB ESP
+-- ═══════════════════════════════════════════════════════════════
 local espGroup = Tabs.ESP:AddLeftGroupbox("ESP Settings", "eye")
 
-local espToggle = espGroup:AddToggle("ESPMasterToggle", {
+espGroup:AddToggle("ESPMasterToggle", {
     Text = "Enable ESP",
     Default = Settings.ESPEnabled,
     Tooltip = "Ativa todos os ESPs",
-    Callback = function(value)
-        Settings.ESPEnabled = value
-        SyncBorosConfig()
-    end,
+    Callback = function(value) Settings.ESPEnabled = value SyncBorosConfig() end,
 })
 
 espGroup:AddToggle("ESPBoxesToggle", {
     Text = "Box",
     Default = Settings.ESPBoxes,
     Tooltip = "Mostra a box com contorno",
-    Callback = function(value)
-        Settings.ESPBoxes = value
-        SyncBorosConfig()
-    end,
+    Callback = function(value) Settings.ESPBoxes = value SyncBorosConfig() end,
 })
 
--- NOVOS ESPs (Boros extras)
 espGroup:AddToggle("ESPBoxesCornerToggle", {
     Text = "Corner Boxes",
     Default = Settings.ESPCorner,
     Tooltip = "Mostra apenas os cantos da box",
-    Callback = function(value)
-        Settings.ESPCorner = value
-        SyncBorosConfig()
-    end,
+    Callback = function(value) Settings.ESPCorner = value SyncBorosConfig() end,
 })
 
 espGroup:AddToggle("ESPBoxesFilledToggle", {
     Text = "Filled Boxes",
     Default = Settings.ESPFilled,
     Tooltip = "Preenche a box com cor",
-    Callback = function(value)
-        Settings.ESPFilled = value
-        SyncBorosConfig()
-    end,
+    Callback = function(value) Settings.ESPFilled = value SyncBorosConfig() end,
 })
 
 espGroup:AddToggle("ESPTracersToggle", {
     Text = "Tracers",
     Default = Settings.ESPTracers,
     Tooltip = "Linhas da base da tela até o alvo",
-    Callback = function(value)
-        Settings.ESPTracers = value
-    end,
+    Callback = function(value) Settings.ESPTracers = value end,
 })
 
 espGroup:AddToggle("ESPInfoToggle", {
     Text = "Player Info (Nome + Distância)",
     Default = Settings.ESPInfo,
     Tooltip = "Mostra nome e distância",
-    Callback = function(value)
-        Settings.ESPInfo = value
-        SyncBorosConfig()
-    end,
+    Callback = function(value) Settings.ESPInfo = value SyncBorosConfig() end,
 })
 
 espGroup:AddToggle("ESPWeaponsToggle", {
     Text = "Weapons",
     Default = Settings.ESPWeapons,
     Tooltip = "Mostra a arma equipada",
-    Callback = function(value)
-        Settings.ESPWeapons = value
-        SyncBorosConfig()
-    end,
+    Callback = function(value) Settings.ESPWeapons = value SyncBorosConfig() end,
 })
 
 espGroup:AddToggle("ESPFOVToggle", {
     Text = "FOV Circle",
     Default = Settings.ESPDrawFOV,
     Tooltip = "Mostra o círculo do FOV",
-    Callback = function(value)
-        Settings.ESPDrawFOV = value
-    end,
+    Callback = function(value) Settings.ESPDrawFOV = value end,
 })
 
 espGroup:AddSlider("ESPMaxDistSlider", {
     Text = "Max Distance",
     Default = Settings.ESPMaxDist,
-    Min = 50,
-    Max = 1000,
-    Rounding = 0,
-    Suffix = "studs",
-    Callback = function(value)
-        Settings.ESPMaxDist = value
-        SyncBorosConfig()
-    end,
+    Min = 50, Max = 1000, Rounding = 0, Suffix = "studs",
+    Callback = function(value) Settings.ESPMaxDist = value SyncBorosConfig() end,
 })
 
 espGroup:AddToggle("ESPHeartBarToggle", {
     Text = "Heart Bar",
     Default = Settings.ESPHeartBar,
     Tooltip = "Barra de vida ao lado da box",
-    Callback = function(value)
-        Settings.ESPHeartBar = value
-        SyncBorosConfig()
-    end,
+    Callback = function(value) Settings.ESPHeartBar = value SyncBorosConfig() end,
 })
 
 espGroup:AddToggle("ESPChamsToggle", {
     Text = "Chams",
     Default = Settings.ESPChams,
     Tooltip = "Destaca o personagem com cor",
-    Callback = function(value)
-        Settings.ESPChams = value
-        SyncBorosConfig()
-    end,
+    Callback = function(value) Settings.ESPChams = value SyncBorosConfig() end,
 })
 
 espGroup:AddToggle("ESPSkeletonToggle", {
     Text = "Skeleton",
     Default = Settings.ESPSkeleton,
     Tooltip = "Mostra o esqueleto do jogador",
-    Callback = function(value)
-        Settings.ESPSkeleton = value
-    end,
+    Callback = function(value) Settings.ESPSkeleton = value end,
 })
 
--- ===== TAB CONFIG =====
-ThemeManager:SetLibrary(Library)
-SaveManager:SetLibrary(Library)
+-- ═══════════════════════════════════════════════════════════════
+--  TAB UI SETTINGS
+-- ═══════════════════════════════════════════════════════════════
 
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ "MenuKeybind", "MenuKeyPicker", "AimKeyPicker" })
+-- ── Discord Box (copiar link) ──
+local DiscordBox = Tabs.UISettings:AddLeftGroupbox("Discord", "message-circle")
+local DISCORD_LINK = "https://discord.gg/sUhyccqrHs"
 
-ThemeManager:SetFolder("xPAim")
-SaveManager:SetFolder("xPAim")
-
-local configGroup = Tabs.Config:AddLeftGroupbox("Configurações", "settings")
-
-local menuKeyLabel = configGroup:AddLabel("Menu Key (abrir/fechar)")
-local menuKeyPicker = menuKeyLabel:AddKeyPicker("MenuKeyPicker", {
-    Default = "LeftAlt",
-    Text = "Tecla do Menu",
-    Mode = "Toggle",
-    SyncToggleState = false,
-    ChangedCallback = function(NewKey, NewModifiers)
-        if NewKey == Enum.KeyCode.Unknown then
-            Settings.MenuKey = Enum.KeyCode.LeftAlt
-        else
-            Settings.MenuKey = NewKey
-        end
-        Library.ToggleKeybind = Settings.MenuKey
+DiscordBox:AddLabel("Clique para copiar o link do Discord")
+DiscordBox:AddButton({
+    Text = "Discord Link",
+    Func = function()
+        local ok = pcall(function()
+            if setclipboard then
+                setclipboard(DISCORD_LINK)
+            elseif toclipboard then
+                toclipboard(DISCORD_LINK)
+            elseif Clipboard and Clipboard.set then
+                Clipboard.set(DISCORD_LINK)
+            else
+                error("Executor sem função de clipboard")
+            end
+        end)
         Library:Notify({
-            Title = "Menu Key",
-            Description = "Nova tecla: " .. tostring(NewKey),
-            Time = 2,
+            Title = ok and "Copiado!" or "Erro",
+            Description = ok and ("Link copiado:\n" .. DISCORD_LINK)
+                              or "Não foi possível copiar o link.",
+            Time = 4,
         })
     end,
 })
 
-configGroup:AddButton({
-    Text = "Unload Script",
+-- ── Menu Group ──
+local MenuGroup = Tabs.UISettings:AddLeftGroupbox("Menu", "wrench")
+
+MenuGroup:AddToggle("KeybindMenuOpen", {
+    Default = Library.KeybindFrame.Visible,
+    Text = "Open Keybind Menu",
+    Callback = function(value)
+        Library.KeybindFrame.Visible = value
+    end,
+})
+
+MenuGroup:AddToggle("ShowCustomCursor", {
+    Text = "Custom Cursor",
+    Default = Library.ShowCustomCursor,
+    Callback = function(Value)
+        Library.ShowCustomCursor = Value
+    end,
+})
+
+MenuGroup:AddDropdown("NotificationSide", {
+    Values = { "Left", "Right" },
+    Default = "Right",
+    Text = "Notification Side",
+    Callback = function(Value)
+        Library:SetNotifySide(Value)
+    end,
+})
+
+MenuGroup:AddDropdown("DPIDropdown", {
+    Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
+    Default = "100%",
+    Text = "DPI Scale",
+    Callback = function(Value)
+        Value = Value:gsub("%%", "")
+        local DPI = tonumber(Value)
+        Library:SetDPIScale(DPI)
+    end,
+})
+
+MenuGroup:AddSlider("UICornerSlider", {
+    Text = "Corner Radius",
+    Default = Library.CornerRadius,
+    Min = 0, Max = 20, Rounding = 0,
+    Callback = function(value)
+        Window:SetCornerRadius(value)
+    end,
+})
+
+MenuGroup:AddDivider()
+MenuGroup:AddLabel("Menu bind")
+    :AddKeyPicker("MenuKeybind", { Default = "LeftAlt", NoUI = true, Text = "Menu keybind" })
+
+MenuGroup:AddButton({
+    Text = "Unload",
     Func = function()
-        ScriptActive = false
-        for _, p in ipairs(Players:GetPlayers()) do
-            RemoveESP(p)
-            RemoveBorosESP(p)
-        end
-        FOVDraw:Remove()
-        TargetDraw:Remove()
-        for _, t in pairs(TracersTable) do t:Remove() end
-        BorosScreenGui:Destroy()
         Library:Unload()
     end,
     Risky = true,
 })
 
+Library.ToggleKeybind = Options.MenuKeybind
+
+-- ── Addons ──
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind", "AimKeyPicker" })
+
+ThemeManager:SetFolder("xPAim")
+SaveManager:SetFolder("xPAim")
+
+SaveManager:BuildConfigSection(Tabs.UISettings)
+ThemeManager:ApplyToTab(Tabs.UISettings)
+
 SaveManager:LoadAutoloadConfig()
 
-Library.ToggleKeybind = Settings.MenuKey
-
-Library:OnUnload(function()
-    ScriptActive = false
-    for _, p in ipairs(Players:GetPlayers()) do
-        RemoveESP(p)
-        RemoveBorosESP(p)
-    end
-    FOVDraw:Remove()
-    TargetDraw:Remove()
-    for _, t in pairs(TracersTable) do t:Remove() end
-    BorosScreenGui:Destroy()
-end)
-
---// INPUT
+-- ═══════════════════════════════════════════════════════════════
+--  INPUT (aimbot)
+-- ═══════════════════════════════════════════════════════════════
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-
-    if Settings.MenuKey and input.KeyCode == Settings.MenuKey then
-        MenuVisible = not MenuVisible
-        Window.Visible = MenuVisible
-        return
-    end
-
     if Settings.AimEnabled then
         local match = false
-        if Settings.AimKey.EnumType == Enum.KeyCode then
-            match = input.KeyCode == Settings.AimKey
-        elseif Settings.AimKey.EnumType == Enum.UserInputType then
-            match = input.UserInputType == Settings.AimKey
+        if typeof(Settings.AimKey) == "EnumItem" then
+            if Settings.AimKey.EnumType == Enum.KeyCode then
+                match = input.KeyCode == Settings.AimKey
+            elseif Settings.AimKey.EnumType == Enum.UserInputType then
+                match = input.UserInputType == Settings.AimKey
+            end
         end
-        if match then
-            HoldingAim = true
-        end
+        if match then HoldingAim = true end
     end
 end)
 
@@ -1384,10 +1139,12 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if Settings.AimEnabled then
         local match = false
-        if Settings.AimKey.EnumType == Enum.KeyCode then
-            match = input.KeyCode == Settings.AimKey
-        elseif Settings.AimKey.EnumType == Enum.UserInputType then
-            match = input.UserInputType == Settings.AimKey
+        if typeof(Settings.AimKey) == "EnumItem" then
+            if Settings.AimKey.EnumType == Enum.KeyCode then
+                match = input.KeyCode == Settings.AimKey
+            elseif Settings.AimKey.EnumType == Enum.UserInputType then
+                match = input.UserInputType == Settings.AimKey
+            end
         end
         if match then
             HoldingAim = false
@@ -1396,7 +1153,9 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
---// RENDER LOOP (Aimbot + Tracers + Skeleton + FOV)
+-- ═══════════════════════════════════════════════════════════════
+--  RENDER LOOP
+-- ═══════════════════════════════════════════════════════════════
 RunService.RenderStepped:Connect(function()
     if not ScriptActive then return end
     if not Camera or not Camera.Parent then
@@ -1419,7 +1178,6 @@ RunService.RenderStepped:Connect(function()
     -- AIMBOT
     if Settings.AimEnabled and HoldingAim then
         local valid = false
-
         if CurrentTarget then
             local char = CurrentTarget.Player.Character
             local part = char and GetAimPart(char)
@@ -1445,14 +1203,12 @@ RunService.RenderStepped:Connect(function()
         if CurrentTarget then
             local part = CurrentTarget.Part
             local aimPos = GetAimPosition(part)
-
             local targetCF = CFrame.new(Camera.CFrame.Position, aimPos)
             if Settings.Smoothness >= 0.99 then
                 Camera.CFrame = targetCF
             else
                 Camera.CFrame = Camera.CFrame:Lerp(targetCF, Settings.Smoothness)
             end
-
             local pos, onScreen = Camera:WorldToViewportPoint(aimPos)
             if onScreen then
                 TargetDraw.Position = Vector2.new(pos.X, pos.Y)
@@ -1469,20 +1225,16 @@ RunService.RenderStepped:Connect(function()
         TargetDraw.Visible = false
     end
 
-    -- TRACERS (Drawing)
+    -- TRACERS
     if Settings.ESPEnabled and Settings.ESPTracers then
         for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                UpdateTracer(player)
-            end
+            if player ~= LocalPlayer then UpdateTracer(player) end
         end
     else
-        for _, tracer in pairs(TracersTable) do
-            tracer.Visible = false
-        end
+        for _, tracer in pairs(TracersTable) do tracer.Visible = false end
     end
 
-    -- SKELETON (Drawing)
+    -- SKELETON
     if Settings.ESPEnabled and Settings.ESPSkeleton then
         for _, player in ipairs(Players:GetPlayers()) do
             if player == LocalPlayer then continue end
@@ -1499,13 +1251,26 @@ RunService.RenderStepped:Connect(function()
             local data = ESPTable[player]
             if data then
                 for _, lineData in ipairs(data.SkeletonLines) do
-                    if lineData and lineData[1] then
-                        lineData[1].Visible = false
-                    end
+                    if lineData and lineData[1] then lineData[1].Visible = false end
                 end
             end
         end
     end
+end)
+
+-- ═══════════════════════════════════════════════════════════════
+--  UNLOAD HANDLER
+-- ═══════════════════════════════════════════════════════════════
+Library:OnUnload(function()
+    ScriptActive = false
+    for _, p in ipairs(Players:GetPlayers()) do
+        RemoveESP(p)
+        RemoveBorosESP(p)
+    end
+    FOVDraw:Remove()
+    TargetDraw:Remove()
+    for _, t in pairs(TracersTable) do t:Remove() end
+    if BorosScreenGui then BorosScreenGui:Destroy() end
 end)
 
 -- Notificação inicial
