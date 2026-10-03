@@ -1,5 +1,9 @@
 -- ==========================================================================
--- PARTE 1: xP Hub - Ride A Pet
+-- xP Hub | Ride A Pet — Egg Finder + Auto Farm + Fly
+-- ==========================================================================
+
+-- ==========================================================================
+-- PARTE 1: xP UI LIBRARY
 -- ==========================================================================
 
 local UserInputService = game:GetService("UserInputService")
@@ -119,22 +123,22 @@ function Library:CreateWindow(title, subtitle, logoId)
 
     Window.ScreenGui = Create("ScreenGui", {Name = "xP_UI_Library", Parent = CoreGui, ZIndexBehavior = Enum.ZIndexBehavior.Sibling})
 
-    Window.MainFrame = Create("Frame", {Name = "MainFrame", Size = UDim2.new(0, 700, 0, 450), Position = UDim2.new(0.5, -350, 0.5, -225), BackgroundColor3 = Theme.Background, BorderSizePixel = 0, ClipsDescendants = true, Parent = Window.ScreenGui}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+    Window.MainFrame = Create("Frame", {Name = "MainFrame", Size = UDim2.new(0, 780, 0, 520), Position = UDim2.new(0.5, -390, 0.5, -260), BackgroundColor3 = Theme.Background, BorderSizePixel = 0, ClipsDescendants = true, Parent = Window.ScreenGui}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
     Window.UIScale = Create("UIScale", {Name = "MenuScale", Scale = 1, Parent = Window.MainFrame})
 
     NotifContainer = Create("Frame", {Name = "NotifContainer", Size = UDim2.new(0, 320, 1, -20), Position = UDim2.new(1, -330, 0, 10), BackgroundTransparency = 1, Parent = Window.ScreenGui}, {
         Create("UIListLayout", {Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Top, HorizontalAlignment = Enum.HorizontalAlignment.Right})
     })
 
-    local TopBar = Create("Frame", {Name = "TopBar", Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = Theme.TopBar, Parent = Window.MainFrame}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+    local TopBar = Create("Frame", {Name = "TopBar", Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = Theme.TopBar, Parent = Window.MainFrame}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
 
     if logoId then
-        Create("ImageLabel", {Size = UDim2.new(0, 40, 0, 40), Position = UDim2.new(0, 15, 0.5, -18), BackgroundTransparency = 1, Image = "rbxassetid://" .. logoId, Parent = TopBar})
+        Create("ImageLabel", {Size = UDim2.new(0, 44, 0, 44), Position = UDim2.new(0, 15, 0.5, -22), BackgroundTransparency = 1, Image = "rbxassetid://" .. logoId, Parent = TopBar})
     end
-    Create("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(0, 65, 0, 0), BackgroundTransparency = 1, Text = title, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, Parent = TopBar})
-    Create("TextLabel", {Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 135, 0, 0), BackgroundTransparency = 1, Text = "|  " .. subtitle, TextColor3 = Theme.TextDim, Font = Enum.Font.Gotham, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Parent = TopBar})
+    Create("TextLabel", {Size = UDim2.new(0, 220, 1, 0), Position = UDim2.new(0, 70, 0, 0), BackgroundTransparency = 1, Text = title, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 17, TextXAlignment = Enum.TextXAlignment.Left, Parent = TopBar})
+    Create("TextLabel", {Size = UDim2.new(0, 280, 1, 0), Position = UDim2.new(0, 150, 0, 0), BackgroundTransparency = 1, Text = "|  " .. subtitle, TextColor3 = Theme.TextDim, Font = Enum.Font.Gotham, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, Parent = TopBar})
 
-    local CloseBtn = Create("TextButton", {Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -40, 0.5, -15), BackgroundTransparency = 1, Text = "X", TextColor3 = Theme.TextDim, Font = Enum.Font.GothamBold, TextSize = 14, Parent = TopBar})
+    local CloseBtn = Create("TextButton", {Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(1, -42, 0.5, -16), BackgroundTransparency = 1, Text = "X", TextColor3 = Theme.TextDim, Font = Enum.Font.GothamBold, TextSize = 15, Parent = TopBar})
     CloseBtn.MouseButton1Click:Connect(function() Window.ScreenGui:Destroy() end)
 
     local dragging, dragInput, dragStart, startPos
@@ -154,7 +158,7 @@ function Library:CreateWindow(title, subtitle, logoId)
         end
     end)
 
-    Window.Sidebar = Create("Frame", {Size = UDim2.new(0, 180, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = Theme.Sidebar, BorderSizePixel = 0, Parent = Window.MainFrame})
+    Window.Sidebar = Create("Frame", {Size = UDim2.new(0, 200, 1, -50), Position = UDim2.new(0, 0, 0, 50), BackgroundColor3 = Theme.Sidebar, BorderSizePixel = 0, Parent = Window.MainFrame})
 
     Window.TabsContainer = Create("Frame", {Name = "TabsContainer", Size = UDim2.new(1, -20, 1, -80), Position = UDim2.new(0, 10, 0, 10), BackgroundColor3 = Theme.TabsBG, BorderSizePixel = 0, Parent = Window.Sidebar}, {
         Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
@@ -162,15 +166,15 @@ function Library:CreateWindow(title, subtitle, logoId)
         Create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8)})
     })
 
-    local ProfileFrame = Create("Frame", {Size = UDim2.new(0, 160, 0, 50), Position = UDim2.new(0, 10, 1, -60), BackgroundColor3 = Theme.Profile, Parent = Window.MainFrame}, {
+    local ProfileFrame = Create("Frame", {Size = UDim2.new(0, 180, 0, 55), Position = UDim2.new(0, 10, 1, -65), BackgroundColor3 = Theme.Profile, Parent = Window.MainFrame}, {
         Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
         Create("UIStroke", {Color = Theme.Profile, Thickness = 1.5, Transparency = 0.2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
     })
-    Create("ImageLabel", {Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(0, 10, 0.5, -16), BackgroundColor3 = Theme.ToggleOff, Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=150&h=150", Parent = ProfileFrame}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
-    Create("TextLabel", {Size = UDim2.new(1, -50, 0, 14), Position = UDim2.new(0, 48, 0, 9), BackgroundTransparency = 1, Text = LocalPlayer.DisplayName, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Parent = ProfileFrame})
-    Create("TextLabel", {Size = UDim2.new(1, -50, 0, 12), Position = UDim2.new(0, 48, 0, 24), BackgroundTransparency = 1, Text = "@" .. LocalPlayer.Name, TextColor3 = Theme.TextDim, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, Parent = ProfileFrame})
+    Create("ImageLabel", {Size = UDim2.new(0, 36, 0, 36), Position = UDim2.new(0, 10, 0.5, -18), BackgroundColor3 = Theme.ToggleOff, Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=150&h=150", Parent = ProfileFrame}, {Create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+    Create("TextLabel", {Size = UDim2.new(1, -55, 0, 16), Position = UDim2.new(0, 52, 0, 10), BackgroundTransparency = 1, Text = LocalPlayer.DisplayName, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = ProfileFrame})
+    Create("TextLabel", {Size = UDim2.new(1, -55, 0, 14), Position = UDim2.new(0, 52, 0, 27), BackgroundTransparency = 1, Text = "@" .. LocalPlayer.Name, TextColor3 = Theme.TextDim, Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, Parent = ProfileFrame})
 
-    Window.PagesContainer = Create("Frame", {Size = UDim2.new(1, -180, 1, -45), Position = UDim2.new(0, 180, 0, 45), BackgroundTransparency = 1, Parent = Window.MainFrame})
+    Window.PagesContainer = Create("Frame", {Size = UDim2.new(1, -200, 1, -50), Position = UDim2.new(0, 200, 0, 50), BackgroundTransparency = 1, Parent = Window.MainFrame})
 
     return Window
 end
@@ -215,7 +219,7 @@ function Library:CreateTab(name, icon)
     Tab.Elements = {}
     local screenGui = self.ScreenGui
 
-    Tab.Button = Create("TextButton", {Name = name, Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = Theme.TabsBG, Text = "  " .. icon .. "  " .. name, TextColor3 = Theme.Text, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, Parent = self.TabsContainer}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
+    Tab.Button = Create("TextButton", {Name = name, Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = Theme.TabsBG, Text = "  " .. icon .. "  " .. name, TextColor3 = Theme.Text, Font = Enum.Font.GothamSemibold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, Parent = self.TabsContainer}, {Create("UICorner", {CornerRadius = UDim.new(0, 6)})})
     table.insert(CreatedElements.TabButtons, Tab.Button)
 
     Tab.Page = Create("ScrollingFrame", {Name = name, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = false, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = Theme.Accent, ScrollBarImageTransparency = 0.3, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollingDirection = Enum.ScrollingDirection.Y, ElasticBehavior = Enum.ElasticBehavior.Never, Parent = self.PagesContainer}, {
@@ -619,7 +623,7 @@ end
 getgenv().xP_UI_Library = Library
 
 -- ==========================================================================
--- PARTE 2: xP HUB | RIDE A PET — EGG FINDER + AUTO FARM + FLY
+-- PARTE 2: xP HUB | RIDE A PET — EGG FINDER + AUTO FARM + FLY + DISCORD
 -- ==========================================================================
 
 local workspace = game:GetService("Workspace")
@@ -917,7 +921,6 @@ local function freezeCharacter()
     end
 end
 
--- 👇 FIX: unfreeze agora FORÇA AutoRotate = true
 local function unfreezeCharacter()
     local char = localPlayer.Character
     if not char then return end
@@ -978,11 +981,9 @@ local function getTargetCFrame(target)
     return nil
 end
 
--- 👇 FIX: stopMovement agora força AutoRotate SEMPRE
 local function stopMovement()
     movementActive = false
 
-    -- Força AutoRotate = true em qualquer humanoid
     local char = localPlayer.Character
     if char then
         local hum = char:FindFirstChildWhichIsA("Humanoid")
@@ -1072,7 +1073,6 @@ end
 
 local moveToTarget = bypassMoveToTarget
 
--- 👇 FIX: bypassWalkToHome restaura AutoRotate ao chegar
 local function bypassWalkToHome()
     local plotsFolder = workspace:FindFirstChild("Plots")
     if not plotsFolder then return false end
@@ -1091,7 +1091,6 @@ local function bypassWalkToHome()
                 end
                 if isOwner then
                     local ok = bypassMoveToTarget(plot)
-                    -- Garante que voltou a rotacionar
                     local char = localPlayer.Character
                     if char then
                         local hum = char:FindFirstChildWhichIsA("Humanoid")
@@ -1426,6 +1425,7 @@ HomeTab:CreateInfoCard("User ID", tostring(localPlayer.UserId))
 HomeTab:CreateSection("Atalhos Rápidos")
 HomeTab:CreateButton("🥚  Abrir ESP Eggs", function() xP_UI:SelectTab("ESP Eggs") end)
 HomeTab:CreateButton("🌾  Abrir Auto Farm", function() xP_UI:SelectTab("Auto Farm") end)
+HomeTab:CreateButton("💬  Abrir Discord", function() xP_UI:SelectTab("Discord") end)
 HomeTab:CreateButton("⚙️  Abrir Config", function() xP_UI:SelectTab("Config") end)
 
 -- =================== ABA ESP EGGS ===================
@@ -1474,7 +1474,7 @@ createFlyGroupbox(EggTab)
 EggTab:CreateSection("Ovos Detectados no Mapa")
 
 local EggScroll = Instance.new("ScrollingFrame")
-EggScroll.Size = UDim2.new(1, 0, 0, 380)
+EggScroll.Size = UDim2.new(1, 0, 0, 400)
 EggScroll.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 EggScroll.BorderSizePixel = 0
 EggScroll.ScrollBarThickness = 4
@@ -1661,7 +1661,7 @@ local autoFarmStatusLabel
 AutoFarmTab:CreateSection("Selecionar Ovos Específicos")
 
 local AFScroll = Instance.new("ScrollingFrame")
-AFScroll.Size = UDim2.new(1, 0, 0, 320)
+AFScroll.Size = UDim2.new(1, 0, 0, 340)
 AFScroll.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 AFScroll.BorderSizePixel = 0
 AFScroll.ScrollBarThickness = 4
@@ -1800,7 +1800,6 @@ local function getAutoFarmEggs()
     return filtered
 end
 
--- 👇 FIX: stopAutoFarm força AutoRotate = true SEMPRE
 local function stopAutoFarm()
     autoFarmActive = false
 
@@ -1816,7 +1815,6 @@ local function stopAutoFarm()
     pcall(unfreezeCharacter)
     pcall(forceReleaseE)
 
-    -- Força AutoRotate no personagem atual
     local char = localPlayer.Character
     if char then
         local hum = char:FindFirstChildWhichIsA("Humanoid")
@@ -1899,7 +1897,6 @@ local function startAutoFarm()
                 unfreezeCharacter()
             end
 
-            -- 👇 FIX: Garante AutoRotate true quando não está se movendo
             local humCheck = localPlayer.Character and localPlayer.Character:FindFirstChildWhichIsA("Humanoid")
             if humCheck and humCheck.AutoRotate == false and not movementActive then
                 pcall(function() humCheck.AutoRotate = true end)
@@ -2021,6 +2018,34 @@ autoFarmStatusLabel.TextSize = 13
 autoFarmStatusLabel.Font = Enum.Font.GothamSemibold
 autoFarmStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 autoFarmStatusLabel.Parent = statusFrame
+
+-- =================== ABA DISCORD ===================
+local DiscordTab = xP_UI:CreateTab("Discord", "💬")
+
+DiscordTab:CreateSection("Comunidade")
+
+local DiscordGroup = DiscordTab:AddLeftGroupbox("Discord")
+
+DiscordGroup:AddButton("💬  Discord Link", function()
+    local link = "https://discord.gg/sUhyccqrHs"
+    local ok = pcall(function()
+        if setclipboard then
+            setclipboard(link)
+        elseif toclipboard then
+            toclipboard(link)
+        elseif Clipboard and Clipboard.set then
+            Clipboard.set(link)
+        else
+            error("Nenhum executor suporta setclipboard")
+        end
+    end)
+
+    if ok then
+        xP_UI:Notify("💬 Discord", "Link copiado: " .. link, 5)
+    else
+        xP_UI:Notify("💬 Discord", "Não foi possível copiar 😢", 5)
+    end
+end)
 
 -- =================== LOOP DE SCAN ===================
 local eggLoopThread = task.spawn(function()
