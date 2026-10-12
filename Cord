@@ -1,0 +1,186 @@
+--[[
+    Esse script vai adicionar uma interface na sua tela mostrando:
+    1. Suas coordenadas X, Y, Z em tempo real
+    2. Um botão "Salvar Posição" pra marcar seu local atual
+    3. Uma lista dos seus pontos salvos, podendo clicar em cada um pra ser teleportado
+    4. Um botão "Copiar" pra copiar as coordenadas atuais
+--]]
+
+-- Criando a tela (ScreenGui)
+local player = game.Players.LocalPlayer
+local gui = Instance.new("ScreenGui")
+gui.Name = "CoordenadasGUI"
+
+-- Botão principal pra abrir/fechar o menu
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 150, 0, 40)
+toggleButton.Position = UDim2.new(0, 10, 1, -50)
+toggleButton.Text = "Salvar Posição"
+toggleButton.BackgroundColor3 = Color3.fromRGB(0, 85, 255)
+toggleButton.TextScaled = true
+toggleButton.Parent = gui
+
+-- Frame do menu de salvamento (começa fechado)
+local menuFrame = Instance.new("Frame")
+menuFrame.Size = UDim2.new(0, 250, 0, 200)
+menuFrame.Position = UDim2.new(0, 10, 1, -260)
+menuFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+menuFrame.Visible = false
+menuFrame.Parent = gui
+
+-- Caixa pra digitar o nome do lugar
+local nameBox = Instance.new("TextBox")
+nameBox.Size = UDim2.new(1, -10, 0, 35)
+nameBox.Position = UDim2.new(0, 5, 0, 5)
+nameBox.PlaceholderText = "Nome do local"
+nameBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+nameBox.TextColor3 = Color3.fromRGB(0, 0, 0)
+nameBox.Parent = menuFrame
+
+-- Botão pra salvar a posição com o nome escolhido
+local saveButton = Instance.new("TextButton")
+saveButton.Size = UDim2.new(1, -10, 0, 35)
+saveButton.Position = UDim2.new(0, 5, 0, 45)
+saveButton.Text = "Salvar"
+saveButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+saveButton.Parent = menuFrame
+
+-- Lista onde vão aparecer os lugares salvos (ScrollingFrame)
+local listFrame = Instance.new("ScrollingFrame")
+listFrame.Size = UDim2.new(1, -10, 0, 105)
+listFrame.Position = UDim2.new(0, 5, 0, 85)
+listFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+listFrame.ScrollBarThickness = 8
+listFrame.Parent = menuFrame
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Parent = listFrame
+
+-- Vamos guardar as posições aqui
+local savedPositions = {}
+
+-- Essa variável controla se o menu está aberto ou fechado
+local isMenuOpen = false
+
+-- Função pra criar um botão de teleporte na lista
+local function createTeleportButton(data)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, -5, 0, 35)
+    button.Text = data.name .. " (X: " .. math.floor(data.pos.X) .. 
+                  ", Y: " .. math.floor(data.pos.Y) .. 
+                  ", Z: " .. math.floor(data.pos.Z) .. ")"
+    button.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    button.TextScaled = true
+    button.MouseButton1Click:Connect(function()
+        -- Teleporta o personagem pra posição salva
+        local character = player.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            character:SetPrimaryPartCFrame(CFrame.new(data.pos))
+        end
+    end)
+    return button
+end
+
+-- Atualiza a lista de lugares salvos na tela
+local function updateGUI()
+    for _, child in pairs(listFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    for _, data in pairs(savedPositions) do
+        local button = createTeleportButton(data)
+        button.Parent = listFrame
+    end
+    
+    -- Ajusta o tamanho do Canvas da lista
+    listFrame.CanvasSize = UDim2.new(0, 0, 0, #savedPositions * 40)
+end
+
+-- Função que salva a posição atual do personagem
+local function savePosition()
+    local character = player.Character
+    if not character then return end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    local position = hrp.Position
+    local name = nameBox.Text
+    if name == "" then
+        name = "Lugar " .. (#savedPositions + 1)
+    end
+    
+    table.insert(savedPositions, {name = name, pos = position})
+    updateGUI()
+    nameBox.Text = ""
+end
+
+-- Conecta o botão de salvar
+saveButton.MouseButton1Click:Connect(savePosition)
+
+-- Botão pra abrir/fechar o menu
+toggleButton.MouseButton1Click:Connect(function()
+    isMenuOpen = not isMenuOpen
+    menuFrame.Visible = isMenuOpen
+end)
+
+-- Mostra as coordenadas na tela em tempo real
+local coordLabel = Instance.new("TextLabel")
+coordLabel.Size = UDim2.new(0, 200, 0, 40)
+coordLabel.Position = UDim2.new(1, -210, 0, 10)
+coordLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+coordLabel.BackgroundTransparency = 0.5
+coordLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+coordLabel.TextScaled = true
+coordLabel.Parent = gui
+
+-- ===== BOTÃO DE COPIAR COORDENADAS =====
+local copyButton = Instance.new("TextButton")
+copyButton.Size = UDim2.new(0, 200, 0, 30)
+copyButton.Position = UDim2.new(1, -210, 0, 55)
+copyButton.Text = "Copiar Coordenadas"
+copyButton.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
+copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+copyButton.TextScaled = true
+copyButton.Parent = gui
+
+copyButton.MouseButton1Click:Connect(function()
+    local character = player.Character
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local pos = hrp.Position
+    local texto = string.format("X: %.2f  Y: %.2f  Z: %.2f", pos.X, pos.Y, pos.Z)
+
+    -- Tenta copiar pra área de transferência (só funciona em executor)
+    if setclipboard then
+        setclipboard(texto)
+        copyButton.Text = "Copiado!"
+        task.wait(1)
+        copyButton.Text = "Copiar Coordenadas"
+    else
+        copyButton.Text = "Sem suporte :("
+        task.wait(1)
+        copyButton.Text = "Copiar Coordenadas"
+    end
+end)
+-- ========================================
+
+game:GetService("RunService").RenderStepped:Connect(function()
+    local character = player.Character
+    if character then
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local pos = hrp.Position
+            coordLabel.Text = string.format("X: %.2f  Y: %.2f  Z: %.2f", pos.X, pos.Y, pos.Z)
+        end
+    end
+end)
+
+-- Coloca a interface na tela
+gui.Parent = player.PlayerGui
