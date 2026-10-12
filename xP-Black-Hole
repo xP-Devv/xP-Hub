@@ -1,299 +1,513 @@
 -- ============================================================
--- xP BLACK HOLE
+-- xP BLACK HOLE — v2 (padrões do Orbit aplicados) — CORRIGIDO
 -- ============================================================
--- Puxa todas as partes do workspace em direção ao jogador selecionado
--- Execute em qualquer jogo (funciona na maioria dos jogos)
-
-local Players = gameGetService(Players)
-local RunService = gameGetService(RunService)
-local UserInputService = gameGetService(UserInputService)
-local Workspace = gameGetService(Workspace)
-local LocalPlayer = Players.LocalPlayer
-
--- ============================================================
--- CONFIGURAÇÃO DA INTERFACE
+-- Melhorias:
+--   • AssemblyLinearVelocity (moderno, substitui .Velocity)
+--   • Massless / CanTouch / CanQuery = false (menos lag)
+--   • Restaura estado original das partes ao DESLIGAR
+--   • track() de conexões + unload hook (executar 2x não duplica)
+--   • CharacterAdded limpa tudo no respawn
+--   • pcall em tudo que é sensível
 -- ============================================================
 
-local Gui = Instance.new(ScreenGui)
-Gui.Name = PullPartsGUI
-Gui.Parent = gethui() or game.CoreGui
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local UserInputService  = game:GetService("UserInputService")
+local Workspace         = game:GetService("Workspace")
+local StarterGui        = game:GetService("StarterGui")
+local CoreGui           = game:GetService("CoreGui")
+
+local LP = Players.LocalPlayer
+if not LP then return end
+
+-- ============================================================
+-- UNLOAD HOOK (igual ao Orbit)
+-- ============================================================
+local ENV_KEY = "__xP_BlackHole_Unload"
+local env = (type(getgenv) == "function" and getgenv()) or _G
+if type(env[ENV_KEY]) == "function" then
+    pcall(env[ENV_KEY])
+end
+
+-- ============================================================
+-- TRACK DE CONEXÕES
+-- ============================================================
+local connections = {}
+local function track(c)
+    connections[#connections + 1] = c
+    return c
+end
+
+local function Notify(title, text, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title, Text = text, Duration = duration or 3
+        })
+    end)
+    print(("[xP BlackHole] %s - %s"):format(title, text))
+end
+
+-- ============================================================
+-- ANTI-DUPLICADO
+-- ============================================================
+local playerGui = LP:WaitForChild("PlayerGui")
+local oldGui = playerGui:FindFirstChild("xP_BlackHole")
+if oldGui then oldGui:Destroy() end
+if CoreGui:FindFirstChild("xP_BlackHole") then
+    CoreGui.xP_BlackHole:Destroy()
+end
+
+-- ============================================================
+-- INTERFACE
+-- ============================================================
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "xP_BlackHole"
 Gui.ResetOnSpawn = false
+Gui.Parent = playerGui
 
-local Main = Instance.new(Frame)
-Main.Name = MainFrame
-Main.Parent = Gui
-Main.BackgroundColor3 = Color3.fromRGB(75,75,75)
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 320, 0, 460)
+Main.Position = UDim2.new(0.35, 0, 0.28, 0)
+Main.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 Main.BorderSizePixel = 0
-Main.Position = UDim2.new(0.335, 0, 0.4, 0)
-Main.Size = UDim2.new(0.240, 0, 0.420, 0)
 Main.Active = true
 Main.Draggable = true
+Main.Parent = Gui
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
 
-local Title = Instance.new(TextLabel)
+local Title = Instance.new("TextLabel")
 Title.Parent = Main
-Title.BackgroundColor3 = Color3.fromRGB(95,95,95)
-Title.Size = UDim2.new(1,0,0.10,0)
-Title.Text = Black Hole  Players
-Title.TextColor3 = Color3.new(1,1,1)
-Title.TextScaled = true
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.Text = "🕳️ xP BLACK HOLE"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.BorderSizePixel = 0
+Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
 
--- Lista de jogadores (ScrollingFrame)
-local PlayerList = Instance.new(ScrollingFrame)
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Parent = Title
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Position = UDim2.new(1, -32, 0, 5)
+CloseBtn.Size = UDim2.new(0, 26, 0, 26)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.new(1, 1, 1)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+CloseBtn.BorderSizePixel = 0
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+
+local PlayerList = Instance.new("ScrollingFrame")
 PlayerList.Parent = Main
-PlayerList.BackgroundColor3 = Color3.fromRGB(55,55,55)
-PlayerList.Position = UDim2.new(0.05, 0, 0.12, 0)
-PlayerList.Size = UDim2.new(0.9, 0, 0.58, 0)
+PlayerList.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+PlayerList.Position = UDim2.new(0, 10, 0, 45)
+PlayerList.Size = UDim2.new(1, -20, 0, 240)
 PlayerList.BorderSizePixel = 0
-PlayerList.ScrollBarThickness = 8
+PlayerList.ScrollBarThickness = 6
+PlayerList.CanvasSize = UDim2.new(0, 0, 0, 0)
+Instance.new("UICorner", PlayerList).CornerRadius = UDim.new(0, 6)
 
-local UIListLayout = Instance.new(UIListLayout)
+local UIListLayout = Instance.new("UIListLayout")
 UIListLayout.Parent = PlayerList
 UIListLayout.SortOrder = Enum.SortOrder.Name
-UIListLayout.Padding = UDim.new(0, 2)
+UIListLayout.Padding = UDim.new(0, 4)
 
-local UIPadding = Instance.new(UIPadding)
+local UIPadding = Instance.new("UIPadding")
 UIPadding.Parent = PlayerList
 UIPadding.PaddingTop = UDim.new(0, 5)
+UIPadding.PaddingLeft = UDim.new(0, 5)
+UIPadding.PaddingRight = UDim.new(0, 5)
 
 local function updateCanvasSize()
-    local contentSize = UIListLayout.AbsoluteContentSize
-    PlayerList.CanvasSize = UDim2.new(0, contentSize.X, 0, contentSize.Y)
+    PlayerList.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
 end
-UIListLayoutGetPropertyChangedSignal(AbsoluteContentSize)Connect(updateCanvasSize)
+track(UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvasSize))
 
--- Label do jogador selecionado
-local SelectedLabel = Instance.new(TextLabel)
+local SelectedLabel = Instance.new("TextLabel")
 SelectedLabel.Parent = Main
-SelectedLabel.BackgroundColor3 = Color3.fromRGB(45,45,45)
-SelectedLabel.Position = UDim2.new(0.05, 0, 0.72, 0)
-SelectedLabel.Size = UDim2.new(0.9, 0, 0.10, 0)
-SelectedLabel.Text = Selecionado Nenhum
-SelectedLabel.TextColor3 = Color3.new(1,1,1)
-SelectedLabel.TextScaled = true
+SelectedLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+SelectedLabel.Position = UDim2.new(0, 10, 0, 293)
+SelectedLabel.Size = UDim2.new(1, -20, 0, 30)
+SelectedLabel.Text = "Selecionado: Nenhum"
+SelectedLabel.TextColor3 = Color3.new(1, 1, 1)
+SelectedLabel.Font = Enum.Font.Gotham
+SelectedLabel.TextSize = 13
+SelectedLabel.BorderSizePixel = 0
+Instance.new("UICorner", SelectedLabel).CornerRadius = UDim.new(0, 6)
 
--- Botão de ativação
-local Button = Instance.new(TextButton)
+local Button = Instance.new("TextButton")
 Button.Parent = Main
-Button.BackgroundColor3 = Color3.fromRGB(95,95,95)
-Button.Position = UDim2.new(0.183, 0, 0.84, 0)
-Button.Size = UDim2.new(0.629, 0, 0.11, 0)
-Button.Text = Bring Parts  Off
-Button.TextColor3 = Color3.new(1,1,1)
-Button.TextScaled = true
+Button.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+Button.Position = UDim2.new(0, 10, 0, 333)
+Button.Size = UDim2.new(1, -20, 0, 40)
+Button.Text = "ATIVAR BLACK HOLE"
+Button.TextColor3 = Color3.new(1, 1, 1)
+Button.Font = Enum.Font.GothamBold
+Button.TextSize = 14
+Button.BorderSizePixel = 0
+Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 6)
+
+local SelectPlayerBtn = Instance.new("TextButton")
+SelectPlayerBtn.Parent = Main
+SelectPlayerBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 200)
+SelectPlayerBtn.Position = UDim2.new(0, 10, 0, 378)
+SelectPlayerBtn.Size = UDim2.new(1, -20, 0, 40)
+SelectPlayerBtn.Text = "Select Player"
+SelectPlayerBtn.TextColor3 = Color3.new(1, 1, 1)
+SelectPlayerBtn.Font = Enum.Font.GothamBold
+SelectPlayerBtn.TextSize = 14
+SelectPlayerBtn.BorderSizePixel = 0
+Instance.new("UICorner", SelectPlayerBtn).CornerRadius = UDim.new(0, 6)
+
+local Hint = Instance.new("TextLabel")
+Hint.Parent = Main
+Hint.BackgroundTransparency = 1
+Hint.Position = UDim2.new(0, 0, 1, -18)
+Hint.Size = UDim2.new(1, 0, 0, 15)
+Hint.Text = "[ ALT ESQUERDO ] Abrir/Fechar"
+Hint.TextColor3 = Color3.fromRGB(150, 150, 160)
+Hint.Font = Enum.Font.Gotham
+Hint.TextSize = 10
 
 -- ============================================================
--- VARIÁVEIS DE ESTADO
+-- ESTADO
 -- ============================================================
-
-local character, humanoidRootPart, playerSelected
+local playerSelected, character, humanoidRootPart
 local blackHoleActive = false
-local descendantConnection
-local currentCharacterConnection
+local descendantConn
+local currentCharConn
 
--- Cria o folder e a parte invisível
-local Folder = Instance.new(Folder, Workspace)
-local Part = Instance.new(Part, Folder)
-local Attachment1 = Instance.new(Attachment, Part)
-Part.Anchored = true
-Part.CanCollide = false
-Part.Transparency = 1
+-- Guarda estado ORIGINAL de cada parte pra restaurar depois
+local originals = setmetatable({}, { __mode = "k" })
 
 -- ============================================================
--- SISTEMA DE CONTROLE DE PARTES (Network)
+-- FOLDER / ATTACHMENT ALVO
 -- ============================================================
+local Folder = Instance.new("Folder")
+Folder.Name = "xP_BlackHole_Folder"
+Folder.Parent = Workspace
 
+local Anchor = Instance.new("Part")
+Anchor.Name = "xP_BlackHole_Anchor"
+Anchor.Anchored = true
+Anchor.CanCollide = false
+Anchor.Transparency = 1
+Anchor.Size = Vector3.new(1, 1, 1)
+Anchor.Parent = Folder
+
+local Attachment1 = Instance.new("Attachment")
+Attachment1.Parent = Anchor
+
+-- ============================================================
+-- NETWORK — CORRIGIDO (LP em vez de LocalPlayer)
+-- ============================================================
 if not getgenv().Network then
     getgenv().Network = {
         BaseParts = {},
-        Velocity = Vector3.new(14.46262424,14.46262424,14.46262424)
+        Velocity = Vector3.new(14.46262424, 14.46262424, 14.46262424)
     }
 
     Network.RetainPart = function(part)
-        if partIsA(BasePart) and partIsDescendantOf(Workspace) then
+        if part:IsA("BasePart") and part:IsDescendantOf(Workspace) then
             table.insert(Network.BaseParts, part)
-            part.CustomPhysicalProperties = PhysicalProperties.new(0,0,0,0,0)
+            part.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0, 0, 0)
             part.CanCollide = false
         end
     end
 
-    local function EnablePartControl()
-        LocalPlayer.ReplicationFocus = Workspace
-        RunService.HeartbeatConnect(function()
-            sethiddenproperty(LocalPlayer, SimulationRadius, math.huge)
-            for _, p in pairs(Network.BaseParts) do
-                if pIsDescendantOf(Workspace) then
-                    p.Velocity = Network.Velocity
-                end
-            end
+    -- ✅ CORRIGIDO: era LocalPlayer (nil), agora é LP + pcall
+    pcall(function()
+        LP.ReplicationFocus = Workspace
+    end)
+
+    track(RunService.Heartbeat:Connect(function()
+        pcall(function()
+            sethiddenproperty(LP, "SimulationRadius", math.huge)
         end)
-    end
-    EnablePartControl()
-end
-
--- ============================================================
--- FUNÇÃO PARA FORÇAR PARTES
--- ============================================================
-
-local function ForcePart(v)
-    if vIsA(BasePart) and not v.Anchored and not v.ParentFindFirstChildOfClass(Humanoid) and not v.ParentFindFirstChild(Head) and v.Name ~= Handle then
-        -- Remove BodyMovers antigos
-        for _, x in ipairs(vGetChildren()) do
-            if xIsA(BodyMover) or xIsA(RocketPropulsion) then
-                xDestroy()
+        for _, p in pairs(Network.BaseParts) do
+            if p:IsDescendantOf(Workspace) then
+                p.AssemblyLinearVelocity = Network.Velocity
             end
         end
-        if vFindFirstChild(Attachment) then
-            vFindFirstChild(Attachment)Destroy()
-        end
-        if vFindFirstChild(AlignPosition) then
-            vFindFirstChild(AlignPosition)Destroy()
-        end
-        if vFindFirstChild(Torque) then
-            vFindFirstChild(Torque)Destroy()
-        end
-
-        v.CanCollide = false
-
-        local Torque = Instance.new(Torque, v)
-        Torque.Torque = Vector3.new(100000,100000,100000)
-
-        local AlignPosition = Instance.new(AlignPosition, v)
-        local Attachment2 = Instance.new(Attachment, v)
-
-        Torque.Attachment0 = Attachment2
-        AlignPosition.MaxForce = math.huge
-        AlignPosition.MaxVelocity = math.huge
-        AlignPosition.Responsiveness = 200
-        AlignPosition.Attachment0 = Attachment2
-        AlignPosition.Attachment1 = Attachment1
-    end
+    end))
 end
 
 -- ============================================================
--- FUNÇÕES DE ATIVAÇÃODESATIVAÇÃO
+-- SALVAR / RESTAURAR ESTADO ORIGINAL
 -- ============================================================
+local function saveOriginal(part)
+    if originals[part] then return end
 
+    originals[part] = {
+        canCollide    = part.CanCollide,
+        canTouch      = part.CanTouch,
+        canQuery      = part.CanQuery,
+        massless      = part.Massless,
+        customPhysics = part.CustomPhysicalProperties,
+    }
+end
+
+local function restoreOriginal(part)
+    local orig = originals[part]
+    if not (orig and part.Parent) then return end
+
+    pcall(function()
+        part.CanCollide   = orig.canCollide
+        part.CanTouch     = orig.canTouch
+        part.CanQuery     = orig.canQuery
+        part.Massless     = orig.massless
+        if orig.customPhysics then
+            part.CustomPhysicalProperties = orig.customPhysics
+        end
+    end)
+
+    for _, name in ipairs({"xP_Torque", "xP_Align", "xP_Attach"}) do
+        local c = part:FindFirstChild(name)
+        if c then c:Destroy() end
+    end
+
+    originals[part] = nil
+end
+
+-- ============================================================
+-- FORÇA A PARTE A IR PRO ALVO
+-- ============================================================
+local function forcePart(v)
+    if not (v:IsA("BasePart") and not v.Anchored) then return end
+
+    local parent = v.Parent
+    if not parent then return end
+    if parent:FindFirstChildOfClass("Humanoid") then return end
+    if parent:FindFirstChild("Head") then return end
+    if v.Name == "Handle" then return end
+
+    if v:FindFirstChild("xP_Align") then return end
+
+    saveOriginal(v)
+
+    for _, x in ipairs(v:GetChildren()) do
+        if x:IsA("BodyMover") or x:IsA("RocketPropulsion") then
+            pcall(function() x:Destroy() end)
+        end
+    end
+
+    pcall(function()
+        v.CanCollide = false
+        v.CanTouch  = false
+        v.CanQuery  = false
+        v.Massless  = true
+        v.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0, 0, 0)
+    end)
+
+    local attach = Instance.new("Attachment")
+    attach.Name = "xP_Attach"
+    attach.Parent = v
+
+    local torque = Instance.new("Torque")
+    torque.Name = "xP_Torque"
+    torque.Torque = Vector3.new(1e5, 1e5, 1e5)
+    torque.Attachment0 = attach
+    torque.Parent = v
+
+    local align = Instance.new("AlignPosition")
+    align.Name = "xP_Align"
+    align.MaxForce = math.huge
+    align.MaxVelocity = math.huge
+    align.Responsiveness = 200
+    align.Attachment0 = attach
+    align.Attachment1 = Attachment1
+    align.Parent = v
+end
+
+-- ============================================================
+-- RESTAURAR TODAS AS PARTES
+-- ============================================================
+local function restoreAllParts()
+    local snapshot = {}
+    for part in pairs(originals) do
+        snapshot[#snapshot + 1] = part
+    end
+    for _, part in ipairs(snapshot) do
+        restoreOriginal(part)
+    end
+    table.clear(originals)
+end
+
+-- ============================================================
+-- TOGGLE BLACK HOLE
+-- ============================================================
 local function toggleBlackHole()
     blackHoleActive = not blackHoleActive
 
     if blackHoleActive then
-        Button.Text = Bring Parts  On
+        Button.Text = "DESATIVAR BLACK HOLE"
+        Button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 
-        -- Aplica em todas as partes existentes
-        for _, v in ipairs(WorkspaceGetDescendants()) do
-            ForcePart(v)
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            forcePart(v)
         end
 
-        -- Escuta novas partes adicionadas
-        descendantConnection = Workspace.DescendantAddedConnect(function(v)
+        descendantConn = track(Workspace.DescendantAdded:Connect(function(v)
             if blackHoleActive then
-                ForcePart(v)
+                forcePart(v)
             end
-        end)
+        end))
 
-        -- Loop de atualização da posição do Attachment
-        spawn(function()
-            while blackHoleActive and RunService.RenderSteppedWait() do
-                if humanoidRootPart then
+        task.spawn(function()
+            while blackHoleActive do
+                RunService.RenderStepped:Wait()
+                if humanoidRootPart and humanoidRootPart.Parent then
                     Attachment1.WorldCFrame = humanoidRootPart.CFrame
                 end
             end
         end)
     else
-        Button.Text = Bring Parts  Off
-        if descendantConnection then
-            descendantConnectionDisconnect()
-            descendantConnection = nil
+        Button.Text = "ATIVAR BLACK HOLE"
+        Button.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+
+        if descendantConn then
+            descendantConn:Disconnect()
+            descendantConn = nil
         end
+
+        restoreAllParts()
     end
 end
 
 -- ============================================================
--- FUNÇÃO PARA SELECIONAR ALVO
+-- SELECIONAR ALVO
 -- ============================================================
-
 local function setTargetPlayer(player)
     if not player then
         playerSelected = nil
         character = nil
         humanoidRootPart = nil
-        SelectedLabel.Text = Selecionado Nenhum
-        if blackHoleActive then
-            toggleBlackHole()
-        end
+        SelectedLabel.Text = "Selecionado: Nenhum"
+        if blackHoleActive then toggleBlackHole() end
         return
     end
 
     playerSelected = player
-    SelectedLabel.Text = Selecionado  .. player.Name
+    SelectedLabel.Text = "Selecionado: " .. player.Name
+    Notify("Alvo definido", player.Name, 2)
 
-    if currentCharacterConnection then
-        currentCharacterConnectionDisconnect()
-    end
+    if currentCharConn then currentCharConn:Disconnect() end
 
-    local function updateCharacter()
+    local function updateChar()
         character = playerSelected.Character
-        humanoidRootPart = character and characterFindFirstChild(HumanoidRootPart)
+        humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
     end
 
-    updateCharacter()
-    currentCharacterConnection = playerSelected.CharacterAddedConnect(updateCharacter)
+    updateChar()
+    currentCharConn = playerSelected.CharacterAdded:Connect(updateChar)
 end
 
 -- ============================================================
--- ATUALIZAR LISTA DE JOGADORES
+-- FERRAMENTA SELECT PLAYER
 -- ============================================================
+local function createTargetTool()
+    local backpack = LP:FindFirstChildOfClass("Backpack")
+    local char = LP.Character
 
+    if (backpack and backpack:FindFirstChild("SelectTarget"))
+        or (char and char:FindFirstChild("SelectTarget")) then
+        Notify("Aviso", "Ferramenta já existe!", 2)
+        return
+    end
+    if not backpack then
+        Notify("Erro", "Backpack não encontrado.", 2)
+        return
+    end
+
+    local tool = Instance.new("Tool")
+    tool.Name = "SelectTarget"
+    tool.RequiresHandle = false
+    tool.ToolTip = "Clique em um player para selecionar"
+    tool.TextureId = "rbxassetid://2716591855"
+    tool.Parent = backpack
+
+    local mouse = LP:GetMouse()
+
+    tool.Activated:Connect(function()
+        local targetPart = mouse.Target
+        if not targetPart then
+            Notify("Nenhum", "Mire em um player.", 2)
+            return
+        end
+
+        local targetPlayer
+        local obj = targetPart
+        while obj and obj ~= Workspace do
+            local p = Players:GetPlayerFromCharacter(obj)
+            if p then targetPlayer = p break end
+            obj = obj.Parent
+        end
+
+        if not targetPlayer then
+            Notify("Nenhum", "Clique em player válido.", 2)
+        elseif targetPlayer == LP then
+            Notify("Inválido", "Não pode se selecionar!", 2)
+        else
+            setTargetPlayer(targetPlayer)
+        end
+    end)
+
+    Notify("Ferramenta criada", "SelectTarget adicionada!", 3)
+end
+
+-- ============================================================
+-- LISTA DE JOGADORES
+-- ============================================================
 local function refreshPlayerList()
-    -- Limpa lista
-    for _, child in ipairs(PlayerListGetChildren()) do
-        if childIsA(ImageButton) then
-            childDestroy()
+    for _, child in ipairs(PlayerList:GetChildren()) do
+        if child:IsA("ImageButton") or child:IsA("TextLabel") then
+            child:Destroy()
         end
     end
 
-    local players = PlayersGetPlayers()
+    local players = Players:GetPlayers()
     if #players == 0 then
-        local empty = Instance.new(TextLabel)
+        local empty = Instance.new("TextLabel")
         empty.Parent = PlayerList
         empty.Size = UDim2.new(1, 0, 0, 40)
         empty.BackgroundTransparency = 1
-        empty.Text = Nenhum player no servidor
-        empty.TextColor3 = Color3.new(0.7,0.7,0.7)
-        empty.TextScaled = true
+        empty.Text = "Nenhum player"
+        empty.TextColor3 = Color3.fromRGB(180, 180, 180)
+        empty.Font = Enum.Font.Gotham
+        empty.TextSize = 13
         updateCanvasSize()
         return
     end
 
     for _, plr in ipairs(players) do
-        local btn = Instance.new(ImageButton)
+        local btn = Instance.new("ImageButton")
         btn.Parent = PlayerList
-        btn.Size = UDim2.new(1, 0, 0, 48)
-        btn.BackgroundColor3 = Color3.fromRGB(65,65,65)
+        btn.Size = UDim2.new(1, 0, 0, 45)
+        btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
         btn.BorderSizePixel = 0
-        btn.AutoButtonColor = true
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
-        -- Avatar thumbnail
-        local avatar = Instance.new(ImageLabel)
+        local avatar = Instance.new("ImageLabel")
         avatar.Parent = btn
-        avatar.Size = UDim2.new(0, 38, 0, 38)
-        avatar.Position = UDim2.new(0, 5, 0.5, -19)
+        avatar.Size = UDim2.new(0, 35, 0, 35)
+        avatar.Position = UDim2.new(0, 5, 0.5, -17)
         avatar.BackgroundTransparency = 1
-        avatar.Image = httpswww.roblox.comheadshot-thumbnailimageuserId= .. plr.UserId .. &width=48&height=48
+        avatar.Image = ("https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=48&height=48&format=png"):format(plr.UserId)
+        Instance.new("UICorner", avatar).CornerRadius = UDim.new(1, 0)
 
-        -- Nome
-        local nameLabel = Instance.new(TextLabel)
+        local nameLabel = Instance.new("TextLabel")
         nameLabel.Parent = btn
-        nameLabel.Size = UDim2.new(1, -50, 1, 0)
+        nameLabel.Size = UDim2.new(1, -55, 1, 0)
         nameLabel.Position = UDim2.new(0, 48, 0, 0)
         nameLabel.BackgroundTransparency = 1
         nameLabel.Text = plr.Name
-        nameLabel.TextColor3 = Color3.new(1,1,1)
+        nameLabel.TextColor3 = Color3.new(1, 1, 1)
         nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        nameLabel.TextScaled = true
         nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextSize = 13
 
-        btn.MouseButton1ClickConnect(function()
+        btn.MouseButton1Click:Connect(function()
             setTargetPlayer(plr)
         end)
     end
@@ -301,44 +515,78 @@ local function refreshPlayerList()
     updateCanvasSize()
 end
 
--- ============================================================
--- EVENTOS DA LISTA
--- ============================================================
-
-Players.PlayerAddedConnect(refreshPlayerList)
-Players.PlayerRemovingConnect(refreshPlayerList)
+track(Players.PlayerAdded:Connect(refreshPlayerList))
+track(Players.PlayerRemoving:Connect(function(plr)
+    if playerSelected == plr then setTargetPlayer(nil) end
+    refreshPlayerList()
+end))
 refreshPlayerList()
 
 -- ============================================================
--- EVENTO DO BOTÃO DE ATIVAÇÃO
+-- EVENTOS DOS BOTÕES
 -- ============================================================
-
-Button.MouseButton1ClickConnect(function()
+Button.MouseButton1Click:Connect(function()
     if not playerSelected then
-        SelectedLabel.Text = Selecione um player!
-        task.wait(1)
-        SelectedLabel.Text = playerSelected and (Selecionado  .. playerSelected.Name) or Selecionado Nenhum
+        SelectedLabel.Text = "⚠️ Selecione um player primeiro!"
+        task.wait(1.5)
+        SelectedLabel.Text = "Selecionado: Nenhum"
         return
     end
     toggleBlackHole()
 end)
 
--- ============================================================
--- ALTERNAR INTERFACE COM RIGHT CONTROL
--- ============================================================
+SelectPlayerBtn.MouseButton1Click:Connect(createTargetTool)
 
-UserInputService.InputBeganConnect(function(input, gameProcessed)
-    if input.KeyCode == Enum.KeyCode.RightControl and not gameProcessed then
+-- ============================================================
+-- ATALHO: ALT ESQUERDO
+-- ============================================================
+track(UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.LeftAlt then
         Main.Visible = not Main.Visible
     end
-end)
+end))
 
 -- ============================================================
--- NOTIFICAÇÃO DE CARREGAMENTO
+-- RESPAWN: limpa tudo
 -- ============================================================
+track(LP.CharacterAdded:Connect(function()
+    if blackHoleActive then
+        toggleBlackHole()
+    end
+    task.wait(0.5)
+    if playerSelected then
+        character = playerSelected.Character
+        humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+    end
+end))
 
-gameGetService(StarterGui)SetCore(SendNotification, {
-    Title = Pull Parts,
-    Text = Carregado! Selecione um player e ative.,
-    Duration = 4
-})
+-- ============================================================
+-- UNLOAD
+-- ============================================================
+local function unload()
+    if blackHoleActive then
+        toggleBlackHole()
+    end
+
+    for _, c in ipairs(connections) do
+        pcall(function() c:Disconnect() end)
+    end
+    table.clear(connections)
+
+    if Folder and Folder.Parent then Folder:Destroy() end
+    if Gui and Gui.Parent then Gui:Destroy() end
+
+    if env[ENV_KEY] == unload then
+        env[ENV_KEY] = nil
+    end
+end
+env[ENV_KEY] = unload
+
+CloseBtn.MouseButton1Click:Connect(unload)
+
+-- ============================================================
+-- INICIALIZAÇÃO
+-- ============================================================
+Notify("xP Black Hole v2", "Carregado! ALT ESQUERDO = abrir/fechar.", 4)
+print("[xP Black Hole v2] Carregado com sucesso!")
