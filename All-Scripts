@@ -5,6 +5,7 @@ local GameScripts = {
     [16281300371]     = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Blade-Ball",
     [11815767793]     = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Death-Aura",
     [662417684]       = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Luck-Block",
+    [106931261124996] = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Luck-Block",
     [142823291]       = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-MM2",
     [3623096087]      = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Muscle-Legends",
     [124216119978534] = "https://raw.githubusercontent.com/xP-Devv/xP-Hub/refs/heads/main/xP-Ride-A-Pet",
