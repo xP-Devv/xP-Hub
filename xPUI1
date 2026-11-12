@@ -1858,7 +1858,7 @@ Library.Window = function(self, Data)
 
     local Window = {
         Name = Data.Name or Data.name or "Window",
-        SubTitle = Data.SubTitle or Data.subtitle or "for PUBG",
+        SubTitle = Data.SubTitle or Data.subtitle or "xP HuB",
         ExpiresIn = Data.ExpiresIn or Data.expiresin or "23d",
         Logo = Data.Logo or Data.logo or nil,
         Size = Data.Size or Data.size or UDim2.fromOffset(568, 350),
